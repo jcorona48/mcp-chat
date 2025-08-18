@@ -1,5 +1,7 @@
 import { createGroq } from "@ai-sdk/groq";
 import { createXai } from "@ai-sdk/xai";
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+
 
 import {
   customProvider,
@@ -42,6 +44,10 @@ const xaiClient = createXai({
   apiKey: getApiKey('XAI_API_KEY'),
 });
 
+const openRouteClient = createOpenRouter({
+  apiKey: getApiKey('OPENROUTE_API_KEY'),
+})
+
 const languageModels = {
   "qwen3-32b": wrapLanguageModel(
     {
@@ -49,9 +55,10 @@ const languageModels = {
       middleware
     }
   ),
-  "grok-3-mini": xaiClient("grok-3-mini-latest"),
   "kimi-k2": groqClient('moonshotai/kimi-k2-instruct'),
-  "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct')
+  "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct'),
+  "gpt-oss-20b": openRouteClient("openai/gpt-oss-20b:free"),
+  "glm-4.5-air": openRouteClient("z-ai/glm-4.5-air:free")
 };
 
 export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
@@ -69,19 +76,26 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
     apiVersion: "qwen3-32b",
     capabilities: ["Reasoning", "Efficient", "Agentic"]
   },
-  "grok-3-mini": {
-    provider: "XAI",
-    name: "Grok 3 Mini",
-    description: "Latest version of XAI's Grok 3 Mini with strong reasoning and coding capabilities.",
-    apiVersion: "grok-3-mini-latest",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
   "llama4": {
     provider: "Groq",
     name: "Llama 4",
     description: "Latest version of Meta's Llama 4 with good balance of capabilities.",
     apiVersion: "llama-4-scout-17b-16e-instruct",
     capabilities: ["Balanced", "Efficient", "Agentic"]
+  },
+  'gpt-oss-20b': {
+    provider: "OpenAI",
+    name: "GPT-OSS 20B",
+    description: "Latest version of OpenAI's GPT-OSS 20B with strong reasoning and coding capabilities.",
+    apiVersion: "openai/gpt-oss-20b:free",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  'glm-4.5-air': {
+    provider: "Z-AI",
+    name: "GLM 4.5 Air",
+    description: "Latest version of Z-AI's GLM 4.5 Air with strong reasoning and coding capabilities.",
+    apiVersion: "z-ai/glm-4.5-air:free",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
   }
 };
 
@@ -103,4 +117,4 @@ export type modelID = keyof typeof languageModels;
 
 export const MODELS = Object.keys(languageModels);
 
-export const defaultModel: modelID = "kimi-k2";
+export const defaultModel: modelID = "glm-4.5-air";

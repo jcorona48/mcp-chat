@@ -51,6 +51,13 @@ const API_KEYS_CONFIG: ApiKeyConfig[] = [
     label: "XAI API Key",
     placeholder: "xai-...",
   },
+  {
+    name: "Open Route",
+    key: "open_route",
+    storageKey: "OPEN_ROUTE_API_KEY",
+    label: "Open Route API Key",
+    placeholder: "sk-open-route-...",
+  }
 ];
 
 interface ApiKeyManagerProps {

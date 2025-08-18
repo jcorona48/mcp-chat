@@ -1,6 +1,5 @@
 import { model, type modelID } from "@/ai/providers";
-import { smoothStream, streamText, type UIMessage } from "ai";
-import { appendResponseMessages } from 'ai';
+import { smoothStream, streamText, type UIMessage, convertToModelMessages, generateId, stepCountIs } from "ai";
 import { saveChat, saveMessages, convertToDBMessages } from '@/lib/chat-store';
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
@@ -26,9 +25,9 @@ export async function POST(req: Request) {
     mcpServers?: MCPServerConfig[];
   } = await req.json();
 
-  const { isBot, isGoodBot } = await checkBotId();
+  const { isBot, isVerifiedBot } = await checkBotId();
 
-  if (isBot && !isGoodBot) {
+  if (isBot && !isVerifiedBot) {
     return new Response(
       JSON.stringify({ error: "Bot is not allowed to access this endpoint" }),
       { status: 401, headers: { "Content-Type": "application/json" } }
@@ -94,10 +93,6 @@ export async function POST(req: Request) {
 
   // Initialize MCP clients using the already running persistent HTTP/SSE servers
   const { tools, cleanup } = await initializeMCPClients(mcpServers, req.signal);
-
-  console.log("messages", messages);
-  console.log("parts", messages.map(m => m.parts.map(p => p)));
-
   // Track if the response has completed
   let responseCompleted = false;
 
@@ -125,9 +120,9 @@ export async function POST(req: Request) {
     - Use the tools to answer the user's question.
     - If you don't know the answer, use the tools to find the answer or say you don't know.
     `,
-    messages,
+    messages: convertToModelMessages(messages),
     tools,
-    maxSteps: 20,
+    stopWhen: stepCountIs(5),
     providerOptions: {
       google: {
         thinkingConfig: {
@@ -145,28 +140,11 @@ export async function POST(req: Request) {
       delayInMs: 5, // optional: defaults to 10ms
       chunking: 'line', // optional: defaults to 'word'
     }),
+    onFinish: async ({}) => {
+      console.log("Messages from Stream:", messages);
+    },
     onError: (error) => {
       console.error(JSON.stringify(error, null, 2));
-    },
-    async onFinish({ response }) {
-      responseCompleted = true;
-      const allMessages = appendResponseMessages({
-        messages,
-        responseMessages: response.messages,
-      });
-
-      await saveChat({
-        id,
-        userId,
-        messages: allMessages,
-      });
-
-      const dbMessages = convertToDBMessages(allMessages, id);
-      await saveMessages({ messages: dbMessages });
-
-      // Clean up resources - now this just closes the client connections
-      // not the actual servers which persist in the MCP context
-      await cleanup();
     }
   });
 
@@ -184,12 +162,30 @@ export async function POST(req: Request) {
 
   result.consumeStream()
   // Add chat ID to response headers so client can know which chat was created
-  return result.toDataStreamResponse({
+  return result.toUIMessageStreamResponse({
+    originalMessages: messages,
+    generateMessageId: () => generateId(),
     sendReasoning: true,
     headers: {
       'X-Chat-ID': id
     },
-    getErrorMessage: (error) => {
+    onFinish: async ({ messages, responseMessage}) => {
+      responseCompleted = true;
+      console.log("messages:", messages);
+      await saveChat({
+        id,
+        userId,
+        messages,
+      });
+
+      const dbMessages = convertToDBMessages(messages, id);
+      await saveMessages({ messages: dbMessages });
+
+      // Clean up resources - now this just closes the client connections
+      // not the actual servers which persist in the MCP context
+      await cleanup();
+    },
+    onError: (error) => {
       if (error instanceof Error) {
         if (error.message.includes("Rate limit")) {
           return "Rate limit exceeded. Please try again later.";

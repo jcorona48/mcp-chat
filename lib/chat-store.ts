@@ -6,7 +6,7 @@ import { generateTitle } from "@/app/actions";
 
 type AIMessage = {
   role: string;
-  content: string | any[];
+  content?: string | any[];
   id?: string;
   parts?: MessagePart[];
 };
@@ -14,7 +14,7 @@ type AIMessage = {
 type UIMessage = {
   id: string;
   role: string;
-  content: string;
+  content?: string;
   parts: MessagePart[];
   createdAt?: Date;
 };
@@ -22,7 +22,7 @@ type UIMessage = {
 type SaveChatParams = {
   id?: string;
   userId: string;
-  messages?: any[];
+  messages?: UIMessage[];
   title?: string;
 };
 

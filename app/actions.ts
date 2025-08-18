@@ -4,6 +4,24 @@ import { groq } from "@ai-sdk/groq";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+
+const getApiKey = (key: string): string | undefined => {
+  // Check for environment variables first
+  if (process.env[key]) {
+    return process.env[key] || undefined;
+  }
+
+  // Fall back to localStorage if available
+  if (typeof window !== 'undefined') {
+    return window.localStorage.getItem(key) || undefined;
+  }
+
+  return undefined;
+};
+const openrouter = createOpenRouter({
+  apiKey: getApiKey('OPENROUTER_API_KEY')
+});
 
 // Helper to extract text content from a message regardless of format
 function getMessageText(message: any): string {
@@ -47,13 +65,14 @@ export async function generateTitle(messages: any[]): Promise<string> {
 
     // Extract text content from the message
     const messageText = getMessageText(userMessage);
+    console.log("Message Text:", messageText);
 
     if (!messageText.trim()) {
       return 'New Chat';
     }
 
     const { object: titleObject } = await generateObject({
-      model: groq('llama-3.1-8b-instant'),
+      model: openrouter('z-ai/glm-4.5-air:free'),
       schema: z.object({
         title: z.string().describe("A short, descriptive title for the conversation"),
       }),

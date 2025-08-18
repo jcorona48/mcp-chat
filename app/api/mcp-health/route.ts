@@ -31,7 +31,9 @@ export async function POST(req: NextRequest) {
         name: 'sse-client',
         version: '1.0.0'
       });
+      console.log("BaseURL:", baseUrl);
       const sseTransport = new SSEClientTransport(baseUrl);
+      console.log("transport", sseTransport);
       await client.connect(sseTransport);
       console.log("Connected using SSE transport");
     }
