@@ -54,6 +54,12 @@ export default function Chat({ initialMessages, userId }: ChatProps) {
         id: chatId || generatedChatId, // Use generated ID if no chatId in URL
         messages: initialMessages,
         experimental_throttle: 100,
+        onFinish: () => {
+            // Invalidate the chats query to refresh the sidebar
+            if (userId) {
+                queryClient.invalidateQueries({ queryKey: ["chats", userId] });
+            }
+        },
     });
 
     const handleSubmit = useCallback(
