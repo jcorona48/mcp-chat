@@ -6,6 +6,5 @@ import { getUserId } from './actions/user';
 export async function middleware(request: NextRequest) {
 
   const userId = await getUserId();
-
   return NextResponse.next();
 }

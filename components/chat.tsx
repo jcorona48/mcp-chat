@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type Message as DBMessage } from "@/lib/db/schema";
 import { nanoid } from "nanoid";
 import { useMCP } from "@/lib/context/mcp-context";
+import { getCookie } from "@/utils/cookies/client";
 
 // Type for chat data from DB
 export interface ChatData {
@@ -25,11 +26,15 @@ interface ChatProps {
     initialMessages: UIMessage[];
     userId: string | null;
 }
-export default function Chat({ initialMessages, userId }: ChatProps) {
+export default function Chat({
+    initialMessages,
+    userId: userIDProp,
+}: ChatProps) {
     const router = useRouter();
     const params = useParams();
     const chatId = params?.id as string | undefined;
     const queryClient = useQueryClient();
+    const [userId, setUserId] = useState<string | null>(userIDProp || null);
 
     const [selectedModel, setSelectedModel] = useLocalStorage<modelID>(
         "selectedModel",
@@ -40,6 +45,14 @@ export default function Chat({ initialMessages, userId }: ChatProps) {
 
     // Get MCP server data from context
     const { mcpServersForApi } = useMCP();
+
+    useEffect(() => {
+        if (!userIDProp) {
+            const newId = getCookie("ai-chat-user-id");
+            console.log("Using userId from cookie:", newId);
+            setUserId(newId);
+        }
+    }, [userIDProp]);
 
     // Generate a chat ID if needed
     useEffect(() => {
