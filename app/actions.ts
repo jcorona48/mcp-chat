@@ -1,10 +1,27 @@
 "use server";
 
 import { groq } from "@ai-sdk/groq";
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { cookies } from 'next/headers';
+
+const USER_ID_KEY = 'ai-chat-user-id';
+
+export async function getUserId(): Promise<string> {
+  'use server'
+  // Only run this on the client side
+  const cookieStore = await cookies();
+  const userId = cookieStore.get(USER_ID_KEY)?.value as string;
+
+  return userId;
+}
+
+export async function updateUserId(newUserId: string) {
+  'use server'
+    const cookieStore = await cookies();
+    cookieStore.set(USER_ID_KEY, newUserId);
+}
 
 const getApiKey = (key: string): string | undefined => {
   // Check for environment variables first
@@ -65,14 +82,12 @@ export async function generateTitle(messages: any[]): Promise<string> {
 
     // Extract text content from the message
     const messageText = getMessageText(userMessage);
-    console.log("Message Text:", messageText);
-
     if (!messageText.trim()) {
       return 'New Chat';
     }
 
     const { object: titleObject } = await generateObject({
-      model: openrouter('z-ai/glm-4.5-air:free'),
+      model: groq('openai/gpt-oss-20b'),
       schema: z.object({
         title: z.string().describe("A short, descriptive title for the conversation"),
       }),
@@ -85,3 +100,4 @@ export async function generateTitle(messages: any[]): Promise<string> {
     return 'New Chat';
   }
 }
+

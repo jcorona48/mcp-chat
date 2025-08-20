@@ -1,5 +1,7 @@
-import { db } from "./db";
-import { chats, messages, type Chat, type Message, MessageRole, type MessagePart, type DBMessage } from "./db/schema";
+"use server";
+
+import { db } from "@/lib/db";
+import { chats, messages, type Chat, type Message, MessageRole, type MessagePart, type DBMessage } from "@/lib/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { generateTitle } from "@/app/actions";
@@ -26,7 +28,7 @@ type SaveChatParams = {
   title?: string;
 };
 
-type ChatWithMessages = Chat & {
+export type ChatWithMessages = Chat & {
   messages: Message[];
 };
 
@@ -52,62 +54,6 @@ export async function saveMessages({
     console.error('Failed to save messages in database', error);
     throw error;
   }
-}
-
-// Function to convert AI messages to DB format
-export function convertToDBMessages(aiMessages: AIMessage[], chatId: string): DBMessage[] {
-  return aiMessages.map(msg => {
-    // Use existing id or generate a new one
-    const messageId = msg.id || nanoid();
-
-    // If msg has parts, use them directly
-    if (msg.parts) {
-      return {
-        id: messageId,
-        chatId,
-        role: msg.role,
-        parts: msg.parts,
-        createdAt: new Date()
-      };
-    }
-
-    // Otherwise, convert content to parts
-    let parts: MessagePart[];
-
-    if (typeof msg.content === 'string') {
-      parts = [{ type: 'text', text: msg.content }];
-    } else if (Array.isArray(msg.content)) {
-      if (msg.content.every(item => typeof item === 'object' && item !== null)) {
-        // Content is already in parts-like format
-        parts = msg.content as MessagePart[];
-      } else {
-        // Content is an array but not in parts format
-        parts = [{ type: 'text', text: JSON.stringify(msg.content) }];
-      }
-    } else {
-      // Default case
-      parts = [{ type: 'text', text: String(msg.content) }];
-    }
-
-    return {
-      id: messageId,
-      chatId,
-      role: msg.role,
-      parts,
-      createdAt: new Date()
-    };
-  });
-}
-
-// Convert DB messages to UI format
-export function convertToUIMessages(dbMessages: Array<Message>): Array<UIMessage> {
-  return dbMessages.map((message) => ({
-    id: message.id,
-    parts: message.parts as MessagePart[],
-    role: message.role as string,
-    content: getTextContent(message), // For backward compatibility
-    createdAt: message.createdAt,
-  }));
 }
 
 export async function saveChat({ id, userId, messages: aiMessages, title }: SaveChatParams) {
@@ -226,28 +172,6 @@ export async function saveChat({ id, userId, messages: aiMessages, title }: Save
   return { id: chatId };
 }
 
-// Helper to get just the text content for display
-export function getTextContent(message: Message): string {
-  try {
-    const parts = message.parts as MessagePart[];
-    return parts
-      .filter(part => part.type === 'text' && part.text)
-      .map(part => part.text)
-      .join('\n');
-  } catch (e) {
-    // If parsing fails, return empty string
-    return '';
-  }
-}
-
-export async function getChats(userId: string) {
-  const chatsMessages = await db.query.chats.findMany({
-    where: eq(chats.userId, userId),
-    orderBy: [desc(chats.updatedAt)]
-  });
-  return chatsMessages;
-}
-
 export async function getChatById(id: string, userId: string): Promise<ChatWithMessages | null> {
   const chat = await db.query.chats.findFirst({
     where: and(
@@ -268,12 +192,3 @@ export async function getChatById(id: string, userId: string): Promise<ChatWithM
     messages: chatMessages
   };
 }
-
-export async function deleteChat(id: string, userId: string) {
-  await db.delete(chats).where(
-    and(
-      eq(chats.id, id),
-      eq(chats.userId, userId)
-    )
-  );
-} 

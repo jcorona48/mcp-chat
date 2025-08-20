@@ -40,10 +40,6 @@ const groqClient = createGroq({
   apiKey: getApiKey('GROQ_API_KEY'),
 });
 
-const xaiClient = createXai({
-  apiKey: getApiKey('XAI_API_KEY'),
-});
-
 const openRouteClient = createOpenRouter({
   apiKey: getApiKey('OPENROUTE_API_KEY'),
 })

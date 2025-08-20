@@ -224,11 +224,4 @@ const PurePreviewMessage = ({
     );
 };
 
-export const Message = memo(PurePreviewMessage, (prevProps, nextProps) => {
-    if (prevProps.status !== nextProps.status) return false;
-    if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (prevProps.isLatestMessage !== nextProps.isLatestMessage) return false;
-    if (prevProps.message.id !== nextProps.message.id) return false;
-    if (!equal(prevProps.message.parts, nextProps.message.parts)) return false;
-    return true;
-});
+export const Message = PurePreviewMessage;

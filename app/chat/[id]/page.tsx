@@ -1,57 +1,32 @@
-"use client";
+"use server";
 
 import Chat from "@/components/chat";
-import { getUserId } from "@/lib/user-id";
-import { useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { getUserId } from "@/app/actions";
+import { getChatById } from "@/actions/chat";
+import { convertToUIMessages } from "@/lib/chat-store";
+import { UIMessage } from "ai";
 
-export default function ChatPage() {
-  const params = useParams();
-  const chatId = params?.id as string;
-  const queryClient = useQueryClient();
-  const userId = getUserId();
+interface ChatPageProps {
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+    params?: { id: string };
+}
 
-  // Prefetch chat data
-  useEffect(() => {
-    async function prefetchChat() {
-      if (!chatId || !userId) return;
+export default async function ChatPage(props: ChatPageProps) {
+    const searchParams = await props.searchParams;
+    const params = await props.params;
+    const chatId = params?.id as string;
+    const userId = await getUserId();
 
-      // Check if data already exists in cache
-      const existingData = queryClient.getQueryData(["chat", chatId, userId]);
-      if (existingData) return;
-
-      // Prefetch the data
-      await queryClient.prefetchQuery({
-        queryKey: ["chat", chatId, userId] as const,
-        queryFn: async () => {
-          const response = await fetch(`/api/chats/${chatId}`, {
-            headers: {
-              "x-user-id": userId,
-            },
-          });
-
-          if (!response.ok) {
-            // For 404, return empty chat data instead of throwing
-            if (response.status === 404) {
-              return {
-                id: chatId,
-                messages: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
-            }
-            throw new Error("Failed to load chat");
-          }
-
-          return response.json();
-        },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-      });
+    const chat = await getChatById(chatId, userId);
+    if (!chat) {
+        console.error(
+            "Chat not found or no messages available for chat ID:",
+            chatId
+        );
+        return <div>Chat not found</div>;
     }
 
-    prefetchChat();
-  }, [chatId, userId, queryClient]);
+    const converted = convertToUIMessages(chat.messages);
 
-  return <Chat />;
+    return <Chat initialMessages={converted as UIMessage[]} userId={userId} />;
 }

@@ -1,30 +1,31 @@
 "use client";
 
 import { defaultModel, type modelID } from "@/ai/providers";
-import { UIMessage, useChat } from "@ai-sdk/react";
+import { type UIMessage, useChat } from "@ai-sdk/react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Textarea } from "./textarea";
 import { ProjectOverview } from "./project-overview";
 import { Messages } from "./messages";
-import { toast } from "sonner";
 import { useRouter, useParams } from "next/navigation";
-import { getUserId } from "@/lib/user-id";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { convertToUIMessages } from "@/lib/chat-store";
 import { type Message as DBMessage } from "@/lib/db/schema";
 import { nanoid } from "nanoid";
 import { useMCP } from "@/lib/context/mcp-context";
 
 // Type for chat data from DB
-interface ChatData {
+export interface ChatData {
     id: string;
     messages: DBMessage[];
     createdAt: string;
     updatedAt: string;
 }
 
-export default function Chat() {
+interface ChatProps {
+    initialMessages: UIMessage[];
+    userId: string | null;
+}
+export default function Chat({ initialMessages, userId }: ChatProps) {
     const router = useRouter();
     const params = useParams();
     const chatId = params?.id as string | undefined;
@@ -34,114 +35,32 @@ export default function Chat() {
         "selectedModel",
         defaultModel
     );
-    const [userId, setUserId] = useState<string>("");
     const [generatedChatId, setGeneratedChatId] = useState<string>("");
     const [input, setInput] = useState<string>("");
 
     // Get MCP server data from context
     const { mcpServersForApi } = useMCP();
 
-    // Initialize userId
-    useEffect(() => {
-        setUserId(getUserId());
-    }, []);
-
     // Generate a chat ID if needed
     useEffect(() => {
         if (!chatId) {
-            setGeneratedChatId(nanoid());
+            const newChatId = nanoid();
+            setGeneratedChatId(newChatId);
         }
     }, [chatId]);
-
-    // Use React Query to fetch chat history
-    const {
-        data: chatData,
-        isLoading: isLoadingChat,
-        error,
-    } = useQuery({
-        queryKey: ["chat", chatId, userId] as const,
-        queryFn: async ({ queryKey }) => {
-            const [_, chatId, userId] = queryKey;
-            if (!chatId || !userId) return null;
-
-            const response = await fetch(`/api/chats/${chatId}`, {
-                headers: {
-                    "x-user-id": userId,
-                },
-            });
-
-            if (!response.ok) {
-                // For 404, return empty chat data instead of throwing
-                if (response.status === 404) {
-                    return {
-                        id: chatId,
-                        messages: [],
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    };
-                }
-                throw new Error("Failed to load chat");
-            }
-
-            return response.json() as Promise<ChatData>;
-        },
-        enabled: !!chatId && !!userId,
-        retry: 1,
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false,
-    });
-
     // Handle query errors
-    useEffect(() => {
-        if (error) {
-            console.error("Error loading chat history:", error);
-            toast.error("Failed to load chat history");
-        }
-    }, [error]);
-
-    // Prepare initial messages from query data
-    const initialMessages = useMemo(() => {
-        if (!chatData || !chatData.messages || chatData.messages.length === 0) {
-            return [];
-        }
-
-        // Convert DB messages to UI format, then ensure it matches the Message type from @ai-sdk/react
-        const uiMessages = convertToUIMessages(chatData.messages);
-        return uiMessages.map(
-            (msg) =>
-                ({
-                    id: msg.id,
-                    role: msg.role as UIMessage["role"], // Ensure role is properly typed
-                    content: msg.content,
-                    parts: msg.parts,
-                } as UIMessage)
-        );
-    }, [chatData]);
 
     const { messages, sendMessage, status, stop } = useChat({
         id: chatId || generatedChatId, // Use generated ID if no chatId in URL
         messages: initialMessages,
         experimental_throttle: 100,
-        onFinish: () => {
-            // Invalidate the chats query to refresh the sidebar
-            if (userId) {
-                queryClient.invalidateQueries({ queryKey: ["chats", userId] });
-            }
-        },
-        onError: (error) => {
-            toast.error(
-                error.message.length > 0
-                    ? error.message
-                    : "An error occured, please try again later.",
-                { position: "top-center", richColors: true }
-            );
-        },
     });
 
     const handleSubmit = useCallback(
-        (event: React.FormEvent<HTMLFormElement>) => {
+        async (event: React.FormEvent<HTMLFormElement>) => {
             event.preventDefault();
-            sendMessage(
+            setInput("");
+            await sendMessage(
                 {
                     text: input,
                 },
@@ -154,7 +73,6 @@ export default function Chat() {
                     },
                 }
             );
-            setInput("");
         },
         [input, sendMessage]
     );
@@ -168,7 +86,7 @@ export default function Chat() {
 
     // Custom submit handler
     const handleFormSubmit = useCallback(
-        (e: React.FormEvent<HTMLFormElement>) => {
+        async (e: React.FormEvent<HTMLFormElement>) => {
             e.preventDefault();
 
             if (!chatId && generatedChatId && input.trim()) {
@@ -176,7 +94,7 @@ export default function Chat() {
                 const effectiveChatId = generatedChatId;
 
                 // Submit the form
-                handleSubmit(e);
+                await handleSubmit(e);
 
                 // Redirect to the chat page with the generated ID
                 router.push(`/chat/${effectiveChatId}`);
@@ -188,12 +106,10 @@ export default function Chat() {
         [chatId, generatedChatId, input, handleSubmit, router]
     );
 
-    const isLoading =
-        status === "streaming" || status === "submitted" || isLoadingChat;
-
+    const isLoading = status === "streaming" || status === "submitted";
     return (
         <div className="h-dvh flex flex-col justify-center w-full max-w-[430px] sm:max-w-3xl mx-auto px-4 sm:px-6 py-3">
-            {messages.length === 0 && !isLoadingChat ? (
+            {messages.length === 0 ? (
                 <div className="max-w-xl mx-auto w-full">
                     <ProjectOverview />
                     <form

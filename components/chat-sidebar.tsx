@@ -537,7 +537,7 @@ export function ChatSidebar() {
                                     onSelect={(e) => {
                                         e.preventDefault();
                                         window.open(
-                                            "https://git.new/s-mcp",
+                                            "https://github.com/jcorona48/mcp-chat",
                                             "_blank"
                                         );
                                     }}

@@ -23,19 +23,14 @@ export async function POST(req: NextRequest) {
 
       const transport = new StreamableHTTPClientTransport(baseUrl);
       await client.connect(transport);
-      console.log("Connected using Streamable HTTP transport");
     } catch (error) {
       // If that fails with a 4xx error, try the older SSE transport
-      console.log("Streamable HTTP connection failed, falling back to SSE transport");
       client = new Client({
         name: 'sse-client',
         version: '1.0.0'
       });
-      console.log("BaseURL:", baseUrl);
       const sseTransport = new SSEClientTransport(baseUrl);
-      console.log("transport", sseTransport);
       await client.connect(sseTransport);
-      console.log("Connected using SSE transport");
     }
 
     // Get tools from the connected client

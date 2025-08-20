@@ -140,9 +140,6 @@ export async function POST(req: Request) {
       delayInMs: 5, // optional: defaults to 10ms
       chunking: 'line', // optional: defaults to 'word'
     }),
-    onFinish: async ({}) => {
-      console.log("Messages from Stream:", messages);
-    },
     onError: (error) => {
       console.error(JSON.stringify(error, null, 2));
     }
@@ -159,8 +156,6 @@ export async function POST(req: Request) {
       }
     }
   });
-
-  result.consumeStream()
   // Add chat ID to response headers so client can know which chat was created
   return result.toUIMessageStreamResponse({
     originalMessages: messages,
@@ -171,7 +166,6 @@ export async function POST(req: Request) {
     },
     onFinish: async ({ messages, responseMessage}) => {
       responseCompleted = true;
-      console.log("messages:", messages);
       await saveChat({
         id,
         userId,
