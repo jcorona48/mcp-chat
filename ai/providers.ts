@@ -54,6 +54,7 @@ const languageModels = {
   "kimi-k2": groqClient('moonshotai/kimi-k2-instruct'),
   "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct'),
   "gpt-oss-20b": openRouteClient("openai/gpt-oss-20b:free"),
+  "gpt-oss-120b": groqClient("openai/gpt-oss-120b"),
   "glm-4.5-air": openRouteClient("z-ai/glm-4.5-air:free")
 };
 
@@ -92,7 +93,15 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
     description: "Latest version of Z-AI's GLM 4.5 Air with strong reasoning and coding capabilities.",
     apiVersion: "z-ai/glm-4.5-air:free",
     capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  'gpt-oss-120b': {
+    provider: "OpenAI",
+    name: "GPT-OSS 120B",
+    description: "Latest version of OpenAI's GPT-OSS 120B with strong reasoning and coding capabilities.",
+    apiVersion: "openai/gpt-oss-120b",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
   }
+
 };
 
 // Update API keys when localStorage changes (for runtime updates)
