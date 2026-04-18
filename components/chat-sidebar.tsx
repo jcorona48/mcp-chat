@@ -188,7 +188,7 @@ export function ChatSidebar() {
                         </div>
                         {!isCollapsed && (
                             <div className="font-semibold text-lg text-foreground/90">
-                                ShopBot AI
+                                MceChat AI
                             </div>
                         )}
                     </div>
