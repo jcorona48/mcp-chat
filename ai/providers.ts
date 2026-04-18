@@ -122,4 +122,4 @@ export type modelID = keyof typeof languageModels;
 
 export const MODELS = Object.keys(languageModels);
 
-export const defaultModel: modelID = "glm-4.5-air";
+export const defaultModel: modelID = "gpt-oss-120b";
