@@ -78,9 +78,9 @@ export async function POST(req: Request) {
     reasoningEnabled?: boolean;
   } = await req.json();
 
-  const { isBot, isVerifiedBot } = await checkBotId();
+  const { isBot } = await checkBotId();
 
-  if (isBot && !isVerifiedBot) {
+  if (isBot) {
     return new Response(
       JSON.stringify({ error: "Bot is not allowed to access this endpoint" }),
       { status: 401, headers: { "Content-Type": "application/json" } }

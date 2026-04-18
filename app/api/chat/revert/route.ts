@@ -7,9 +7,9 @@ import { checkBotId } from 'botid/server';
  * Removes all messages after the specified index
  */
 export async function POST(req: Request) {
-  const { isBot, isVerifiedBot } = await checkBotId();
+  const { isBot } = await checkBotId();
 
-  if (isBot && !isVerifiedBot) {
+  if (isBot) {
     return new Response(
       JSON.stringify({ error: 'Bot is not allowed to access this endpoint' }),
       { status: 401, headers: { 'Content-Type': 'application/json' } }
