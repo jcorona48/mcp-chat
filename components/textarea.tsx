@@ -1,7 +1,8 @@
 import { modelID } from "@/ai/providers";
 import { Textarea as ShadcnTextarea } from "@/components/ui/textarea";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Loader2, Square } from "lucide-react";
 import { ModelPicker } from "./model-picker";
+import { ToolsStatusBadge } from "./tools-status-badge";
 
 interface InputProps {
     input: string;
@@ -11,6 +12,9 @@ interface InputProps {
     stop: () => void;
     selectedModel: modelID;
     setSelectedModel: (model: modelID) => void;
+    toolsCount?: number;
+    hasToolsError?: boolean;
+    toolsErrorMessage?: string;
 }
 
 export const Textarea = ({
@@ -21,17 +25,21 @@ export const Textarea = ({
     stop,
     selectedModel,
     setSelectedModel,
+    toolsCount = 0,
+    hasToolsError = false,
+    toolsErrorMessage,
 }: InputProps) => {
     const isStreaming = status === "streaming" || status === "submitted";
 
     return (
         <div className="relative w-full">
             <ShadcnTextarea
-                className="resize-none bg-background/50 dark:bg-muted/50 backdrop-blur-sm w-full rounded-2xl pr-12 pt-4 pb-16 border-input focus-visible:ring-ring placeholder:text-muted-foreground"
+                className="resize-none bg-background/50 dark:bg-muted/50 backdrop-blur-sm w-full rounded-2xl pr-12 pt-4 pb-16 border-input focus-visible:ring-ring placeholder:text-muted-foreground disabled:opacity-50"
                 value={input}
                 autoFocus
-                placeholder="Send a message..."
+                placeholder={isStreaming ? "Esperando respuesta..." : "Send a message..."}
                 onChange={handleInputChange}
+                disabled={isStreaming}
                 onKeyDown={(e) => {
                     if (
                         e.key === "Enter" &&
@@ -44,10 +52,19 @@ export const Textarea = ({
                     }
                 }}
             />
-            <ModelPicker
-                setSelectedModel={setSelectedModel}
-                selectedModel={selectedModel}
-            />
+            
+            {/* Controls: Model Picker + Tools Badge side by side */}
+            <div className="absolute bottom-2 left-2 z-10 flex items-center gap-2">
+                <ModelPicker
+                    setSelectedModel={setSelectedModel}
+                    selectedModel={selectedModel}
+                />
+                <ToolsStatusBadge
+                    toolCount={toolsCount}
+                    hasError={hasToolsError}
+                    errorMessage={toolsErrorMessage}
+                />
+            </div>
 
             <button
                 type={isStreaming ? "button" : "submit"}

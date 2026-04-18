@@ -2,7 +2,7 @@ import { db } from "./db";
 import { chats, messages, type Chat, type Message, MessageRole, type MessagePart, type DBMessage } from "./db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { generateTitle } from "@/app/actions";
+import { sql } from "drizzle-orm";
 
 type AIMessage = {
   role: string;
@@ -22,7 +22,7 @@ type UIMessage = {
 type SaveChatParams = {
   id?: string;
   userId: string;
-  messages?: UIMessage[];
+  messages?: AIMessage[];
   title?: string;
 };
 
@@ -35,21 +35,22 @@ export async function saveMessages({
 }: {
   messages: Array<DBMessage>;
 }) {
+  if (dbMessages.length === 0) return null;
+
   try {
-    if (dbMessages.length > 0) {
-      const chatId = dbMessages[0].chatId;
-
-      // First delete any existing messages for this chat
-      await db
-        .delete(messages)
-        .where(eq(messages.chatId, chatId));
-
-      // Then insert the new messages
-      return await db.insert(messages).values(dbMessages);
-    }
-    return null;
+    return await db
+      .insert(messages)
+      .values(dbMessages)
+      .onConflictDoUpdate({
+        target: messages.id,
+        set: {
+          role: sql`EXCLUDED."role"`,
+          parts: sql`EXCLUDED."parts"`,
+          chatId: sql`EXCLUDED."chat_id"`,
+        }
+      });
   } catch (error) {
-    console.error('Failed to save messages in database', error);
+    console.error('Failed to save messages', error);
     throw error;
   }
 }
@@ -111,119 +112,27 @@ export function convertToUIMessages(dbMessages: Array<Message>): Array<UIMessage
 }
 
 export async function saveChat({ id, userId, messages: aiMessages, title }: SaveChatParams) {
-  // Generate a new ID if one wasn't provided
   const chatId = id || nanoid();
+  const chatTitle = title || 'New Chat';
 
-  // Check if title is provided, if not generate one
-  let chatTitle = title;
-
-  // Generate title if messages are provided and no title is specified
-  if (aiMessages && aiMessages.length > 0) {
-    const hasEnoughMessages = aiMessages.length >= 2 &&
-      aiMessages.some(m => m.role === 'user') &&
-      aiMessages.some(m => m.role === 'assistant');
-
-    if (!chatTitle || chatTitle === 'New Chat' || chatTitle === undefined) {
-      if (hasEnoughMessages) {
-        try {
-          // Use AI to generate a meaningful title based on conversation
-          chatTitle = await generateTitle(aiMessages);
-        } catch (error) {
-          console.error('Error generating title:', error);
-          // Fallback to basic title extraction if AI title generation fails
-          const firstUserMessage = aiMessages.find(m => m.role === 'user');
-          if (firstUserMessage) {
-            // Check for parts first (new format)
-            if (firstUserMessage.parts && Array.isArray(firstUserMessage.parts)) {
-              const textParts = firstUserMessage.parts.filter((p: MessagePart) => p.type === 'text' && p.text);
-              if (textParts.length > 0) {
-                chatTitle = textParts[0].text?.slice(0, 50) || 'New Chat';
-                if ((textParts[0].text?.length || 0) > 50) {
-                  chatTitle += '...';
-                }
-              } else {
-                chatTitle = 'New Chat';
-              }
-            }
-            // Fallback to content (old format)
-            else if (typeof firstUserMessage.content === 'string') {
-              chatTitle = firstUserMessage.content.slice(0, 50);
-              if (firstUserMessage.content.length > 50) {
-                chatTitle += '...';
-              }
-            } else {
-              chatTitle = 'New Chat';
-            }
-          } else {
-            chatTitle = 'New Chat';
-          }
-        }
-      } else {
-        // Not enough messages for AI title, use first message
-        const firstUserMessage = aiMessages.find(m => m.role === 'user');
-        if (firstUserMessage) {
-          // Check for parts first (new format)
-          if (firstUserMessage.parts && Array.isArray(firstUserMessage.parts)) {
-            const textParts = firstUserMessage.parts.filter((p: MessagePart) => p.type === 'text' && p.text);
-            if (textParts.length > 0) {
-              chatTitle = textParts[0].text?.slice(0, 50) || 'New Chat';
-              if ((textParts[0].text?.length || 0) > 50) {
-                chatTitle += '...';
-              }
-            } else {
-              chatTitle = 'New Chat';
-            }
-          }
-          // Fallback to content (old format)
-          else if (typeof firstUserMessage.content === 'string') {
-            chatTitle = firstUserMessage.content.slice(0, 50);
-            if (firstUserMessage.content.length > 50) {
-              chatTitle += '...';
-            }
-          } else {
-            chatTitle = 'New Chat';
-          }
-        } else {
-          chatTitle = 'New Chat';
-        }
-      }
-    }
-  } else {
-    chatTitle = chatTitle || 'New Chat';
-  }
-
-  // Check if chat already exists
   const existingChat = await db.query.chats.findFirst({
-    where: and(
-      eq(chats.id, chatId),
-      eq(chats.userId, userId)
-    ),
+    where: and(eq(chats.id, chatId), eq(chats.userId, userId))
   });
 
   if (existingChat) {
-    // Update existing chat
-    await db
-      .update(chats)
-      .set({
-        title: chatTitle,
-        updatedAt: new Date()
-      })
-      .where(and(
-        eq(chats.id, chatId),
-        eq(chats.userId, userId)
-      ));
+    await db.update(chats).set({
+      updatedAt: new Date()
+    }).where(and(
+      eq(chats.id, chatId),
+      eq(chats.userId, userId)
+    ));
   } else {
-    // Create new chat
     await db.insert(chats).values({
       id: chatId,
       userId,
       title: chatTitle,
-      createdAt: new Date(),
-      updatedAt: new Date()
     });
   }
-
-  return { id: chatId };
 }
 
 // Helper to get just the text content for display
@@ -276,4 +185,61 @@ export async function deleteChat(id: string, userId: string) {
       eq(chats.userId, userId)
     )
   );
+}
+
+/**
+ * Revert chat messages to a specific message index
+ * Useful for "undo" functionality - removes all messages after the specified index
+ * @param chatId - The chat ID
+ * @param userId - The user ID (for verification)
+ * @param upToMessageIndex - Keep messages up to this index (0-based), delete the rest
+ */
+export async function revertChatToMessage(
+  chatId: string,
+  userId: string,
+  upToMessageIndex: number
+) {
+  try {
+    // First, verify the chat belongs to the user
+    const chat = await db.query.chats.findFirst({
+      where: and(
+        eq(chats.id, chatId),
+        eq(chats.userId, userId)
+      ),
+    });
+
+    if (!chat) {
+      throw new Error('Chat not found or unauthorized');
+    }
+
+    // Get all messages for this chat ordered by creation
+    const allMessages = await db.query.messages.findMany({
+      where: eq(messages.chatId, chatId),
+      orderBy: [messages.createdAt]
+    });
+
+    // Identify messages to delete (those after the index)
+    const messagesToDelete = allMessages.slice(upToMessageIndex + 1);
+
+    if (messagesToDelete.length === 0) {
+      return { success: true, deletedCount: 0 };
+    }
+
+    // Delete the messages
+    const deletePromises = messagesToDelete.map(msg =>
+      db.delete(messages).where(eq(messages.id, msg.id))
+    );
+
+    await Promise.all(deletePromises);
+
+    // Update chat's updatedAt timestamp
+    await db.update(chats)
+      .set({ updatedAt: new Date() })
+      .where(eq(chats.id, chatId));
+
+    return { success: true, deletedCount: messagesToDelete.length };
+  } catch (error) {
+    console.error('Failed to revert chat:', error);
+    throw error;
+  }
 } 

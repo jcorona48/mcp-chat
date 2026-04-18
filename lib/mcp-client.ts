@@ -1,5 +1,6 @@
 import { experimental_createMCPClient as createMCPClient } from 'ai';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
 export interface KeyValuePair {
   key: string;
@@ -21,11 +22,24 @@ export interface MCPClientManager {
 /**
  * Initialize MCP clients for API calls
  * This uses the already running persistent HTTP or SSE servers
+ * @param mcpServers - Array of MCP server configurations
+ * @param abortSignal - Optional abort signal for cleanup
+ * @param cachedTools - Optional pre-cached tools to avoid re-fetching
  */
 export async function initializeMCPClients(
   mcpServers: MCPServerConfig[] = [],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  cachedTools?: Record<string, any>
 ): Promise<MCPClientManager> {
+  // If tools are cached and provided, return immediately without creating clients
+  if (cachedTools && Object.keys(cachedTools).length > 0) {
+    return {
+      tools: cachedTools,
+      clients: [],
+      cleanup: async () => {} // No cleanup needed for cached responses
+    };
+  }
+
   // Initialize tools
   let tools = {};
   const mcpClients: any[] = [];
@@ -38,17 +52,19 @@ export async function initializeMCPClients(
         return acc;
       }, {} as Record<string, string>);
 
-      const transport = mcpServer.type === 'sse'
-        ? {
-          type: 'sse' as const,
-          url: mcpServer.url,
-          headers,
-        }
-        : new StreamableHTTPClientTransport(new URL(mcpServer.url), {
+      const baseUrl = new URL(mcpServer.url);
+      
+      let transport;
+      if (mcpServer.type === 'sse') {
+        // Use SSEClientTransport - it handles bidirectional communication via SSE
+        transport = new SSEClientTransport(baseUrl);
+      } else {
+        transport = new StreamableHTTPClientTransport(baseUrl, {
           requestInit: {
             headers,
           },
         });
+      }
 
       const mcpClient = await createMCPClient({ transport });
       mcpClients.push(mcpClient);

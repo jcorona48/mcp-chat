@@ -136,12 +136,11 @@ export const ModelPicker = ({
   };
 
   return (
-    <div className="absolute bottom-2 left-2 z-10">
-      <Select
-        value={validModelId}
-        onValueChange={handleModelChange}
-        defaultValue={validModelId}
-      >
+    <Select
+      value={validModelId}
+      onValueChange={handleModelChange}
+      defaultValue={validModelId}
+    >
         <SelectTrigger className="max-w-[200px] sm:max-w-fit sm:w-56 px-2 sm:px-3 h-8 sm:h-9 rounded-full group border-primary/20 bg-primary/5 hover:bg-primary/10 dark:bg-primary/10 dark:hover:bg-primary/20 transition-all duration-200 ring-offset-background focus:ring-2 focus:ring-primary/30 focus:ring-offset-2">
           <SelectValue
             placeholder="Select model"
@@ -271,6 +270,5 @@ export const ModelPicker = ({
           </div>
         </SelectContent>
       </Select>
-    </div>
-  );
-};
+    );
+  };

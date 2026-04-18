@@ -17,16 +17,17 @@ export default async function ChatPage(props: ChatPageProps) {
     const chatId = params?.id as string;
     const userId = await getUserId();
 
-    const chat = await getChatById(chatId, userId);
-    if (!chat) {
-        console.error(
-            "Chat not found or no messages available for chat ID:",
-            chatId
-        );
-        return <div>Chat not found</div>;
+    let initialMessages: UIMessage[] = [];
+    
+    try {
+        const chat = await getChatById(chatId, userId);
+        if (chat && chat.messages) {
+            const converted = convertToUIMessages(chat.messages);
+            initialMessages = converted as UIMessage[];
+        }
+    } catch (error) {
+        console.log(`Chat ${chatId} not found yet - rendering empty chat`);
     }
 
-    const converted = convertToUIMessages(chat.messages);
-
-    return <Chat initialMessages={converted as UIMessage[]} userId={userId} />;
+    return <Chat initialMessages={initialMessages} userId={userId} />;
 }

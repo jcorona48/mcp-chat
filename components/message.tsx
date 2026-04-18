@@ -122,11 +122,13 @@ const PurePreviewMessage = ({
     message,
     isLatestMessage,
     status,
+    reasoningEnabled = false,
 }: {
     message: TMessage;
     isLoading: boolean;
     status: "error" | "submitted" | "streaming" | "ready";
     isLatestMessage: boolean;
+    reasoningEnabled?: boolean;
 }) => {
     // Create a string with all text parts for copy functionality
     const getMessageText = () => {
@@ -175,6 +177,9 @@ const PurePreviewMessage = ({
                                             )}
                                         >
                                             <Markdown>{part.text}</Markdown>
+                                            {isLatestMessage && status === "streaming" && i === (message.parts?.length ?? 0) - 1 && (
+                                                <span className="inline animate-pulse text-foreground">▌</span>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -195,6 +200,8 @@ const PurePreviewMessage = ({
                                     />
                                 );
                             case "reasoning":
+                                // Only show reasoning if enabled
+                                if (!reasoningEnabled) return null;
                                 return (
                                     <ReasoningMessagePart
                                         key={`message-${message.id}-${i}`}

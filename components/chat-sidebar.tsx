@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { nanoid } from "nanoid";
 import {
     MessageSquare,
     PlusCircle,
@@ -94,7 +95,8 @@ export function ChatSidebar() {
 
     // Start a new chat
     const handleNewChat = () => {
-        router.push("/");
+        const newChatId = nanoid();
+        router.push(`/chat/${newChatId}`);
     };
 
     // Delete a chat
