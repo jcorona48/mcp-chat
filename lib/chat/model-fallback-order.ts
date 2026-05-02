@@ -23,6 +23,15 @@ export function shouldAutoRetryWithAnotherModel(errorMessage: string): boolean {
     normalized.includes("rate_limit") ||
     normalized.includes("failed to call a function") ||
     normalized.includes("tool call validation failed") ||
-    normalized.includes("invalid_request_error")
+    normalized.includes("invalid_request_error") ||
+    normalized.includes("token") && (
+      normalized.includes("limit") ||
+      normalized.includes("exceed") ||
+      normalized.includes("maximum") ||
+      normalized.includes("context length")
+    ) ||
+    normalized.includes("context_length_exceeded") ||
+    normalized.includes("max_tokens") ||
+    normalized.includes("token limit")
   );
 }

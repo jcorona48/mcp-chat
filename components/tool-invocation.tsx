@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -30,10 +30,30 @@ export function ToolInvocation({
   isLatestMessage,
   status,
 }: ToolInvocationProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const normalizedState = state ?? "input-streaming";
+  const isLegacyCall =
+    normalizedState === "partial-call" ||
+    normalizedState === "call" ||
+    normalizedState === "result";
+  const isRunning =
+    normalizedState === "input-streaming" ||
+    normalizedState === "input-available" ||
+    normalizedState === "partial-call" ||
+    normalizedState === "call";
+  const isCompleted =
+    normalizedState === "output-available" ||
+    normalizedState === "result";
+  const isErrored = normalizedState === "output-error";
+
+  useEffect(() => {
+    if (isLatestMessage && status !== "ready" && (isRunning || isCompleted)) {
+      setIsExpanded(true);
+    }
+  }, [isLatestMessage, isRunning, status]);
 
   const getStatusIcon = () => {
-    if (state === "call") {
+    if (isRunning) {
       if (isLatestMessage && status !== "ready") {
         return <Loader2 className="animate-spin h-3.5 w-3.5 text-primary/70" />;
       }
@@ -41,15 +61,21 @@ export function ToolInvocation({
         <Circle className="h-3.5 w-3.5 fill-muted-foreground/10 text-muted-foreground/70" />
       );
     }
+    if (isErrored) {
+      return <Circle className="h-3.5 w-3.5 fill-red-500/20 text-red-400" />;
+    }
     return <CheckCircle2 size={14} className="text-primary/90" />;
   };
 
   const getStatusClass = () => {
-    if (state === "call") {
+    if (isRunning) {
       if (isLatestMessage && status !== "ready") {
         return "text-primary";
       }
       return "text-muted-foreground";
+    }
+    if (isErrored) {
+      return "text-red-400";
     }
     return "text-primary";
   };
@@ -74,7 +100,7 @@ export function ToolInvocation({
     <div
       className={cn(
         "flex flex-col mb-2 rounded-md border border-border/50 overflow-hidden",
-        "bg-gradient-to-b from-background to-muted/30 backdrop-blur-sm",
+        "bg-linear-to-b from-background to-muted/30 backdrop-blur-sm",
         "transition-all duration-200 hover:border-border/80 group"
       )}
     >
@@ -94,11 +120,15 @@ export function ToolInvocation({
           </span>
           <ArrowRight className="h-3 w-3 text-muted-foreground/50" />
           <span className={cn("font-medium", getStatusClass())}>
-            {state === "call"
+            {isRunning
               ? isLatestMessage && status !== "ready"
                 ? "Running"
                 : "Waiting"
-              : "Completed"}
+              : isErrored
+                ? "Error"
+                : isCompleted
+                  ? "Completed"
+                  : normalizedState}
           </span>
         </div>
         <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
@@ -140,12 +170,18 @@ export function ToolInvocation({
               </div>
               <pre
                 className={cn(
-                  "text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-[300px] overflow-y-auto",
+                  "text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-75 overflow-y-auto",
                   "border border-border/40 bg-muted/10"
                 )}
               >
                 {formatContent(result)}
               </pre>
+            </div>
+          )}
+
+          {!args && !result && isLegacyCall && (
+            <div className="text-xs text-muted-foreground/70 pt-1">
+              Calling legacy tool invocation...
             </div>
           )}
         </div>

@@ -12,7 +12,7 @@ import {
   ChevronsUpDown,
   Copy,
   Pencil,
-  Github,
+  GitBranchPlus,
   Key,
 } from "lucide-react";
 import {
@@ -95,6 +95,7 @@ export function ChatSidebar() {
   // Start a new chat
   const handleNewChat = () => {
     router.push("/");
+    router.refresh();
   };
 
   // Delete a chat
@@ -489,7 +490,7 @@ export function ChatSidebar() {
                     window.open("https://git.new/s-mcp", "_blank");
                   }}
                 >
-                  <Github className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
+                  <GitBranchPlus className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
                   GitHub
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>

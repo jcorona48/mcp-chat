@@ -34,14 +34,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <BotIdClient
-          protect={[
-            {
-              path: "/api/chat",
-              method: "POST",
-            }
-          ]}
-        />
       </head>
       <body className={`${inter.className}`}>
         <Providers>

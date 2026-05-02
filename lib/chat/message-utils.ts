@@ -25,6 +25,10 @@ export function isEffectivelyEmptyAssistantMessage(message: MinimalMessage): boo
       return true;
     }
 
+    if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+      return true;
+    }
+
     if (part.type === 'reasoning') {
       return true;
     }

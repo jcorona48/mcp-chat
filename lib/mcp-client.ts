@@ -1,4 +1,4 @@
-import { experimental_createMCPClient as createMCPClient } from 'ai';
+import { createMCPClient } from "@ai-sdk/mcp"
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const DEFAULT_MCP_INIT_TIMEOUT_MS = 12000;
@@ -56,6 +56,28 @@ export interface MCPClientManager {
   tools: Record<string, any>;
   clients: any[];
   cleanup: () => Promise<void>;
+}
+
+function createToolNameAliases(tools: Record<string, any>): Record<string, any> {
+  const aliasedTools: Record<string, any> = { ...tools };
+
+  for (const [toolName, toolImpl] of Object.entries(tools)) {
+    if (toolName.includes('-')) {
+      const underscoreAlias = toolName.replace(/-/g, '_');
+      if (!(underscoreAlias in aliasedTools)) {
+        aliasedTools[underscoreAlias] = toolImpl;
+      }
+    }
+
+    if (toolName.includes('_')) {
+      const hyphenAlias = toolName.replace(/_/g, '-');
+      if (!(hyphenAlias in aliasedTools)) {
+        aliasedTools[hyphenAlias] = toolImpl;
+      }
+    }
+  }
+
+  return aliasedTools;
 }
 
 /**
@@ -148,13 +170,16 @@ export async function initializeMCPClients(
     });
   }
 
+  const toolsWithAliases = createToolNameAliases(tools);
+
   mcpDebugLog('init_finished', {
     connectedClientCount: mcpClients.length,
     mergedToolCount: Object.keys(tools).length,
+    mergedToolCountWithAliases: Object.keys(toolsWithAliases).length,
   });
 
   return {
-    tools,
+    tools: toolsWithAliases,
     clients: mcpClients,
     cleanup: async () => await cleanupMCPClients(mcpClients)
   };

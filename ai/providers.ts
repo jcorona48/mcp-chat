@@ -1,4 +1,5 @@
 import { createGroq } from "@ai-sdk/groq";
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 
 import {
   customProvider,
@@ -37,6 +38,10 @@ const groqClient = createGroq({
   apiKey: getApiKey('GROQ_API_KEY'),
 });
 
+const openRouterClient = createOpenRouter({
+  apiKey: getApiKey('OPENROUTE_API_KEY'),
+});
+
 const languageModels = {
   "qwen3-32b": wrapLanguageModel(
     {
@@ -47,7 +52,16 @@ const languageModels = {
   "kimi-k2": groqClient('moonshotai/kimi-k2-instruct'),
   "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct'),
   "gpt-oss-120b": groqClient('openai/gpt-oss-120b'),
-  
+  "tencent/hy3-preview:free": openRouterClient('tencent/hy3-preview:free', {
+    usage: {
+      include: true
+    },
+  }),
+  "nvidia/nemotron-3-super-120b-a12b:free": openRouterClient('nvidia/nemotron-3-super-120b-a12b:free', {
+    usage: {
+      include: true
+     },
+   }),
 };
 
 export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
@@ -77,6 +91,20 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
     name: "GPT-OSS 120B",
     description: "Open-source version of GPT with strong reasoning and coding capabilities.",
     apiVersion: "gpt-oss-120b",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  "tencent/hy3-preview:free": {
+    provider: "OpenRouter",
+    name: "Tencent HY3 Preview",
+    description: "Preview version of Tencent's HY3 with good balance of capabilities.",
+    apiVersion: "tencent/hy3-preview:free",
+    capabilities: ["Balanced", "Efficient", "Agentic"]
+  },
+  "nvidia/nemotron-3-super-120b-a12b:free": {
+    provider: "OpenRouter",
+    name: "NVIDIA NeMoTron 3 Super 120B A12B",
+    description: "NVIDIA's latest NeMoTron 3 Super model with strong reasoning and coding capabilities.",
+    apiVersion: "nvidia/nemotron-3-super-120b-a12b:free",
     capabilities: ["Reasoning", "Efficient", "Agentic"]
   },
 };

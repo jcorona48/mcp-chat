@@ -1,8 +1,7 @@
 "use client";
 
 import type { UIMessage as TMessage } from "ai";
-import { memo, useCallback, useEffect, useState } from "react";
-import equal from "fast-deep-equal";
+import { useCallback, useEffect, useState } from "react";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/utils";
 import {
@@ -16,8 +15,10 @@ import { CopyButton } from "./copy-button";
 
 interface ReasoningPart {
   type: "reasoning";
-  reasoningText: string;
-  details: Array<{ type: "text"; text: string }>;
+  text?: string;
+  reasoningText?: string;
+  state?: "streaming" | "done";
+  details?: Array<{ type: "text"; text: string }>;
 }
 
 interface ReasoningMessagePartProps {
@@ -30,18 +31,19 @@ export function ReasoningMessagePart({
   isReasoning,
 }: ReasoningMessagePartProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const isStreamingReasoning = part.state === "streaming" || isReasoning;
 
   const memoizedSetIsExpanded = useCallback((value: boolean) => {
     setIsExpanded(value);
   }, []);
 
   useEffect(() => {
-    memoizedSetIsExpanded(isReasoning);
-  }, [isReasoning, memoizedSetIsExpanded]);
+    memoizedSetIsExpanded(isStreamingReasoning);
+  }, [isStreamingReasoning, memoizedSetIsExpanded]);
 
   return (
     <div className="flex flex-col mb-2 group">
-      {isReasoning ? (
+      {isStreamingReasoning ? (
         <div
           className={cn(
             "flex items-center gap-2.5 rounded-full py-1.5 px-3",
@@ -111,18 +113,24 @@ export function ReasoningMessagePart({
           <div className="text-xs text-muted-foreground/70 pl-1 font-medium">
             The assistant&apos;s thought process:
           </div>
-          {part.details.map((detail, detailIndex) =>
-            detail.type === "text" ? (
-              <div
-                key={detailIndex}
-                className="px-2 py-1.5 bg-muted/10 rounded-md border border-border/30"
-              >
-                <Markdown>{detail.text}</Markdown>
-              </div>
-            ) : (
-              "<redacted>"
+          {part.details?.length ? (
+            part.details.map((detail, detailIndex) =>
+              detail.type === "text" ? (
+                <div
+                  key={detailIndex}
+                  className="px-2 py-1.5 bg-muted/10 rounded-md border border-border/30"
+                >
+                  <Markdown>{detail.text}</Markdown>
+                </div>
+              ) : (
+                "<redacted>"
+              )
             )
-          )}
+          ) : (part.text ?? part.reasoningText) ? (
+            <div className="px-2 py-1.5 bg-muted/10 rounded-md border border-border/30">
+              <Markdown>{part.text ?? part.reasoningText ?? ""}</Markdown>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
@@ -169,6 +177,81 @@ const PurePreviewMessage = ({
       >
         <div className="flex flex-col w-full space-y-3">
           {message.parts?.map((part, i) => {
+            if (part.type === "dynamic-tool") {
+              const dynamicToolPart = part as {
+                type: "dynamic-tool";
+                toolName: string;
+                state?: string;
+                input?: unknown;
+                output?: unknown;
+                errorText?: string;
+              };
+
+              return (
+                <ToolInvocation
+                  key={`message-${message.id}-part-${i}`}
+                  toolName={dynamicToolPart.toolName}
+                  state={dynamicToolPart.state || "input-available"}
+                  args={dynamicToolPart.input}
+                  result={dynamicToolPart.output ?? dynamicToolPart.errorText ?? null}
+                  isLatestMessage={isLatestMessage}
+                  status={status}
+                />
+              );
+            }
+
+            if (part.type === "tool-invocation") {
+              const legacyPart = part as unknown as {
+                type: "tool-invocation";
+                toolInvocation: {
+                  toolName: string;
+                  state: "partial-call" | "call" | "result";
+                  args?: unknown;
+                  result?: unknown;
+                  toolCallId?: string;
+                };
+              };
+
+              return (
+                <ToolInvocation
+                  key={`message-${message.id}-part-${i}`}
+                  toolName={legacyPart.toolInvocation.toolName}
+                  state={legacyPart.toolInvocation.state}
+                  args={legacyPart.toolInvocation.args}
+                  result={legacyPart.toolInvocation.result ?? null}
+                  isLatestMessage={isLatestMessage}
+                  status={status}
+                />
+              );
+            }
+
+            if (part.type.startsWith("tool-")) {
+              const toolPart = part as {
+                type: string;
+                state?: string;
+                toolName?: string;
+                toolCallId?: string;
+                input?: unknown;
+                output?: unknown;
+                errorText?: string;
+              };
+
+              const normalizedToolName =
+                toolPart.toolName ?? toolPart.type.replace(/^tool-/, "");
+
+              return (
+                <ToolInvocation
+                  key={`message-${message.id}-part-${i}`}
+                  toolName={normalizedToolName}
+                  state={toolPart.state || "input-available"}
+                  args={toolPart.input}
+                  result={toolPart.output ?? toolPart.errorText ?? null}
+                  isLatestMessage={isLatestMessage}
+                  status={status}
+                />
+              );
+            }
+
             switch (part.type) {
               case "text":
                 return (
@@ -186,36 +269,12 @@ const PurePreviewMessage = ({
                     </div>
                   </div>
                 );
-              case "tool-invocation":
-                const { toolName, state, args } = part.toolInvocation;
-                const result =
-                  "result" in part.toolInvocation
-                    ? part.toolInvocation.result
-                    : null;
-
-                return (
-                  <ToolInvocation
-                    key={`message-${message.id}-part-${i}`}
-                    toolName={toolName}
-                    state={state}
-                    args={args}
-                    result={result}
-                    isLatestMessage={isLatestMessage}
-                    status={status}
-                  />
-                );
               case "reasoning":
                 return (
                   <ReasoningMessagePart
                     key={`message-${message.id}-${i}`}
-                    // @ts-expect-error part
-                    part={part}
-                    isReasoning={
-                      (message.parts &&
-                        status === "streaming" &&
-                        i === message.parts.length - 1) ??
-                      false
-                    }
+                    part={part as ReasoningPart}
+                    isReasoning={part.state === "streaming"}
                   />
                 );
               default:
@@ -233,13 +292,4 @@ const PurePreviewMessage = ({
   );
 };
 
-export const Message = memo(PurePreviewMessage, (prevProps, nextProps) => {
-  if (prevProps.status !== nextProps.status) return false;
-  if (prevProps.isLoading !== nextProps.isLoading) return false;
-  if (prevProps.isLatestMessage !== nextProps.isLatestMessage) return false;
-  if (prevProps.message.annotations !== nextProps.message.annotations)
-    return false;
-  if (prevProps.message.id !== nextProps.message.id) return false;
-  if (!equal(prevProps.message.parts, nextProps.message.parts)) return false;
-  return true;
-});
+export const Message = PurePreviewMessage;

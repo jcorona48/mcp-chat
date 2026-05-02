@@ -1,190 +1,334 @@
 import { model, type modelID } from "@/ai/providers";
-import { smoothStream, streamText, type UIMessage } from "ai";
-import { appendResponseMessages } from 'ai';
-import { saveChat, saveMessages, convertToDBMessages } from '@/lib/chat-store';
-import { nanoid } from 'nanoid';
-import { db } from '@/lib/db';
-import { chats } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { initializeMCPClients, type MCPServerConfig } from '@/lib/mcp-client';
-import { generateTitle } from '@/app/actions';
-import { createTraceLogger } from '@/lib/chat-debug';
-import { getDetailedErrorMessage, getErrorMessageText } from '@/lib/chat/error-utils';
-import { hasTextPart, pruneNonRenderableAssistantMessages } from '@/lib/chat/message-utils';
-import { repairToolCallInput } from '@/lib/chat/tool-repair';
-import { decideExecutionModel, registerSuccessfulTurn, registerToolCallingFailure } from '@/lib/chat/model-execution-policy';
+import { generateTitle } from "@/app/actions";
+import { createTraceLogger } from "@/lib/chat-debug";
+import {
+  saveChat,
+  saveMessage,
+  updateMessage
+} from "@/lib/chat-store";
+import {
+  getDetailedErrorMessage,
+  getErrorMessageText,
+} from "@/lib/chat/error-utils";
+import { decideExecutionModel } from "@/lib/chat/model-execution-policy";
+import { db } from "@/lib/db";
+import { chats, MessagePart } from "@/lib/db/schema";
+import { initializeMCPClients, type MCPServerConfig } from "@/lib/mcp-client";
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  NoSuchToolError,
+  Output,
+  smoothStream,
+  stepCountIs,
+  streamText,
+    type ToolSet,
+  UIMessage
+} from "ai";
+import { and, eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 import { checkBotId } from "botid/server";
 
-const STREAM_TIMEOUT_MS = 30000;
+const STREAM_TIMEOUT_MS = 60000;
 const MCP_INIT_TIMEOUT_MS = 7000;
+const STEP_COUNT_LIMIT = 3;
 
-function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
-  const controller = new AbortController();
-
-  const abort = (reason?: unknown) => {
-    if (!controller.signal.aborted) {
-      controller.abort(reason);
-    }
-  };
-
-  for (const signal of signals) {
-    if (signal.aborted) {
-      abort(signal.reason);
-      break;
+function getFastChatTitle(userMessage?: UIMessage): string {
+    if (!userMessage) {
+        return "New Chat";
     }
 
-    signal.addEventListener('abort', () => abort(signal.reason), { once: true });
-  }
+    const text = (userMessage.parts ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => (typeof part.text === "string" ? part.text.trim() : ""))
+        .filter((value) => value.length > 0)
+        .join(" ")
+        .trim();
 
-  return controller.signal;
+    if (!text) {
+        return "New Chat";
+    }
+
+    return text.length > 60 ? `${text.slice(0, 60)}...` : text;
 }
 
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+    const controller = new AbortController();
+
+    const abort = (reason?: unknown) => {
+        if (!controller.signal.aborted) {
+            controller.abort(reason);
+        }
+    };
+
+    for (const signal of signals) {
+        if (signal.aborted) {
+            abort(signal.reason);
+            break;
+        }
+
+        signal.addEventListener("abort", () => abort(signal.reason), {
+            once: true,
+        });
+    }
+
+    return controller.signal;
+}
+
+function summarizeUnknownPayload(payload: unknown): {
+    type: string;
+    sizeBytes: number;
+} {
+    try {
+        const serialized = JSON.stringify(payload);
+        if (typeof serialized !== "string") {
+            return { type: typeof payload, sizeBytes: 0 };
+        }
+
+        return {
+            type: Array.isArray(payload) ? "array" : typeof payload,
+            sizeBytes: Buffer.byteLength(serialized, "utf8"),
+        };
+    } catch {
+        return {
+            type: Array.isArray(payload) ? "array" : typeof payload,
+            sizeBytes: 0,
+        };
+    }
+}
+
+function withToolExecutionMetrics<TTools extends ToolSet>(
+    tools: TTools,
+    trace: ReturnType<typeof createTraceLogger>,
+): TTools {
+    const instrumentedTools: ToolSet = {};
+
+    for (const [toolName, toolDefinition] of Object.entries(tools)) {
+        if (!toolDefinition || typeof toolDefinition !== "object") {
+            instrumentedTools[toolName] = toolDefinition as ToolSet[string];
+            continue;
+        }
+
+        const candidate = toolDefinition as {
+            execute?: (...args: unknown[]) => Promise<unknown> | unknown;
+        };
+
+        if (typeof candidate.execute !== "function") {
+            instrumentedTools[toolName] = toolDefinition as ToolSet[string];
+            continue;
+        }
+
+        instrumentedTools[toolName] = {
+            ...(toolDefinition as Record<string, unknown>),
+            execute: async (...args: unknown[]) => {
+                const startedAt = Date.now();
+                const inputSummary = summarizeUnknownPayload(args[0]);
+
+                trace("tool_execute_started", {
+                    toolName,
+                    inputType: inputSummary.type,
+                    inputSizeBytes: inputSummary.sizeBytes,
+                });
+
+                try {
+                    const result = await candidate.execute?.(...args);
+                    const outputSummary = summarizeUnknownPayload(result);
+
+                    trace("tool_execute_finished", {
+                        toolName,
+                        durationMs: Date.now() - startedAt,
+                        outputType: outputSummary.type,
+                        outputSizeBytes: outputSummary.sizeBytes,
+                    });
+
+                    return result;
+                } catch (error) {
+                    trace("tool_execute_failed", {
+                        toolName,
+                        durationMs: Date.now() - startedAt,
+                        error: getErrorMessageText(error),
+                    });
+                    throw error;
+                }
+            },
+        } as ToolSet[string];
+    }
+
+    return instrumentedTools as TTools;
+}
 
 export async function POST(req: Request) {
-  const requestId = nanoid(10);
-  const trace = createTraceLogger('chat-api', requestId);
+    const requestId = nanoid(10);
+    const trace = createTraceLogger("chat-api", requestId);
 
-  trace('request_started');
+    trace("request_started");
 
-  const parseStartedAt = Date.now();
-  const {
-    messages,
-    chatId,
-    selectedModel,
-    userId,
-    mcpServers = [],
-  }: {
-    messages: UIMessage[];
-    chatId?: string;
-    selectedModel: modelID;
-    userId: string;
-    mcpServers?: MCPServerConfig[];
-  } = await req.json();
-
-  trace('request_parsed', {
-    parseMs: Date.now() - parseStartedAt,
-    messageCount: messages?.length ?? 0,
-    selectedModel,
-    mcpServerCount: mcpServers?.length ?? 0,
-    hasChatId: Boolean(chatId),
-  });
-
-  const botCheckStartedAt = Date.now();
-  const { isBot, isGoodBot } = await checkBotId();
-  trace('bot_check_finished', {
-    botCheckMs: Date.now() - botCheckStartedAt,
-    isBot,
-    isGoodBot,
-  });
-
-  if (isBot && !isGoodBot) {
-    return new Response(
-      JSON.stringify({ error: "Bot is not allowed to access this endpoint" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
-  }
-
-  if (!userId) {
-    return new Response(
-      JSON.stringify({ error: "User ID is required" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
-  }
-
-  const id = chatId || nanoid();
-  trace('chat_id_resolved', { resolvedChatId: id });
-
-  let isNewChat = false;
-  if (chatId) {
-    try {
-      const existingChatStartedAt = Date.now();
-      const existingChat = await db.query.chats.findFirst({
-        where: and(
-          eq(chats.id, chatId),
-          eq(chats.userId, userId)
-        )
-      });
-      trace('existing_chat_lookup_finished', {
-        existingChatLookupMs: Date.now() - existingChatStartedAt,
-        foundExistingChat: Boolean(existingChat),
-      });
-      isNewChat = !existingChat;
-    } catch (error) {
-      console.error("Error checking for existing chat:", error);
-      trace('existing_chat_lookup_failed', {
-        error: getErrorMessageText(error),
-      });
-      isNewChat = true;
-    }
-  } else {
-    isNewChat = true;
-  }
-
-  if (isNewChat && messages.length > 0) {
-    try {
-      const userMessage = messages.find(m => m.role === 'user');
-      let title = 'New Chat';
-
-      if (userMessage) {
-        try {
-          title = await generateTitle([userMessage]);
-        } catch (error) {
-          console.error("Error generating title:", error);
-        }
-      }
-
-      await saveChat({
-        id,
+    const parseStartedAt = Date.now();
+    const {
+        messages,
+        chatId,
+        selectedModel,
         userId,
-        title,
-        messages: [],
-      });
-    } catch (error) {
-      console.error("Error saving new chat:", error);
-    }
-  }
+        mcpServers = [],
+    }: {
+        messages: UIMessage[];
+        chatId?: string;
+        selectedModel: modelID;
+        userId: string;
+        mcpServers?: MCPServerConfig[];
+    } = await req.json();
+    const userMessage = messages.find((m) => m.role === "user");
 
-  const timeoutController = new AbortController();
-  const streamTimeoutId = setTimeout(() => {
-    trace('stream_timeout_triggered', { timeoutMs: STREAM_TIMEOUT_MS });
-    timeoutController.abort(new Error(`Stream timed out after ${STREAM_TIMEOUT_MS}ms`));
-  }, STREAM_TIMEOUT_MS);
+    try {
+        trace("request_parsed", {
+            parseMs: Date.now() - parseStartedAt,
+            messageCount: messages?.length ?? 0,
+            selectedModel,
+            mcpServerCount: mcpServers?.length ?? 0,
+            hasChatId: Boolean(chatId),
+        });
 
-  const combinedSignal = combineAbortSignals([req.signal, timeoutController.signal]);
+        const botCheckStartedAt = Date.now();
+        const { isBot, isVerifiedBot } = await checkBotId();
+        trace("bot_check_finished", {
+            botCheckMs: Date.now() - botCheckStartedAt,
+            isBot,
+            isVerifiedBot,
+        });
 
-  const mcpInitStartedAt = Date.now();
-  const { tools, cleanup } = await initializeMCPClients(mcpServers, combinedSignal, MCP_INIT_TIMEOUT_MS);
-  const hasTools = Object.keys(tools).length > 0;
-  const modelDecision = decideExecutionModel({
-    userId,
-    chatId: id,
-    selectedModel,
-    hasTools,
-  });
+        if (isBot && !isVerifiedBot) {
+            return new Response(
+                JSON.stringify({
+                    error: "Bot is not allowed to access this endpoint",
+                }),
+                {
+                    status: 401,
+                    headers: { "Content-Type": "application/json" },
+                },
+            );
+        }
 
-  const executionModel = modelDecision.executionModel;
-  const modelAutoSwitched = modelDecision.autoSwitched;
+        if (!userId) {
+            return new Response(
+                JSON.stringify({ error: "User ID is required" }),
+                {
+                    status: 400,
+                    headers: { "Content-Type": "application/json" },
+                },
+            );
+        }
 
-  trace('mcp_init_finished', {
-    mcpInitMs: Date.now() - mcpInitStartedAt,
-    discoveredToolCount: Object.keys(tools).length,
-    selectedModel,
-    executionModel,
-    modelAutoSwitched,
-  });
+        const id = chatId || nanoid();
+        trace("chat_id_resolved", { resolvedChatId: id });
 
-  let responseCompleted = false;
-  let lastErrorMessageForUser: string | null = null;
-  let sawToolCallingFailure = false;
-  trace('stream_setup_started', { maxSteps: 20 });
+        let isNewChat = false;
+        if (chatId) {
+            try {
+                const existingChatStartedAt = Date.now();
+                const existingChat = await db.query.chats.findFirst({
+                    where: and(eq(chats.id, chatId), eq(chats.userId, userId)),
+                });
+                trace("existing_chat_lookup_finished", {
+                    existingChatLookupMs: Date.now() - existingChatStartedAt,
+                    foundExistingChat: Boolean(existingChat),
+                });
+                isNewChat = !existingChat;
+            } catch (error) {
+                console.error("Error checking for existing chat:", error);
+                trace("existing_chat_lookup_failed", {
+                    error: getErrorMessageText(error),
+                });
+                isNewChat = true;
+            }
+        } else {
+            isNewChat = true;
+        }
 
-  const result = streamText({
-    model: model.languageModel(executionModel),
-    abortSignal: combinedSignal,
-    system: `You are a helpful assistant with access to a variety of tools.
+        if (isNewChat && messages.length > 0) {
+            try {
+                const title = getFastChatTitle(userMessage);
 
-    Today's date is ${new Date().toISOString().split('T')[0]}.
+                await saveChat({
+                    id,
+                    userId,
+                    title,
+                    messages: [],
+                });
+            } catch (error) {
+                console.error("Error saving new chat:", error);
+            }
+        }
+
+        await saveMessage({
+            id: userMessage?.id ?? nanoid(),
+            chatId: id,
+            role: userMessage?.role ?? "user",
+            parts: (userMessage?.parts as MessagePart[]) ?? [
+                { type: "text", text: "" },
+            ],
+            createdAt: new Date(),
+        });
+
+        const timeoutController = new AbortController();
+        const streamTimeoutId = setTimeout(() => {
+            trace("stream_timeout_triggered", { timeoutMs: STREAM_TIMEOUT_MS });
+            timeoutController.abort(
+                new Error(`Stream timed out after ${STREAM_TIMEOUT_MS}ms`),
+            );
+        }, STREAM_TIMEOUT_MS);
+
+        const combinedSignal = combineAbortSignals([
+            req.signal,
+            timeoutController.signal,
+        ]);
+
+        const mcpInitStartedAt = Date.now();
+        const { tools, cleanup } = await initializeMCPClients(
+            mcpServers,
+            combinedSignal,
+            MCP_INIT_TIMEOUT_MS,
+        );
+        const hasTools = Object.keys(tools).length > 0;
+        const modelDecision = decideExecutionModel({
+            userId,
+            chatId: id,
+            selectedModel,
+            hasTools,
+        });
+
+        const executionModel = modelDecision.executionModel;
+        const modelAutoSwitched = modelDecision.autoSwitched;
+        const instrumentedTools = withToolExecutionMetrics(tools, trace);
+
+        trace("mcp_init_finished", {
+            mcpInitMs: Date.now() - mcpInitStartedAt,
+            discoveredToolCount: Object.keys(tools).length,
+            selectedModel,
+            executionModel,
+            modelAutoSwitched,
+        });
+
+        let responseCompleted = false;
+        let lastErrorMessageForUser: string | null = null;
+        let sawToolCallingFailure = false;
+        trace("stream_setup_started", { maxSteps: 20 });
+
+        const modelMessages = await convertToModelMessages(messages);
+
+        const stream = createUIMessageStream({
+            originalMessages: messages,
+            execute: async ({ writer: dataStream }) => {
+                const modelStreamStartedAt = Date.now();
+                let firstChunkCaptured = false;
+
+                const result = streamText({
+                    model: model.languageModel(executionModel),
+                    abortSignal: combinedSignal,
+                    system: `You are a helpful assistant with access to a variety of tools.
+
+    Today's date is ${new Date().toISOString()}.
 
     The tools are very powerful, and you can use them to answer the user's question.
     So choose the tool that is most relevant to the user's question.
@@ -205,196 +349,236 @@ export async function POST(req: Request) {
     - Use the tools to answer the user's question.
     - If you don't know the answer, use the tools to find the answer or say you don't know.
     `,
-    messages,
-    tools,
-    maxSteps: 20,
-    providerOptions: {
-      google: {
-        thinkingConfig: {
-          thinkingBudget: 2048,
-        },
-      },
-      anthropic: {
-        thinking: {
-          type: 'enabled',
-          budgetTokens: 12000
-        },
-      }
-    },
-    experimental_transform: smoothStream({
-      delayInMs: 5,
-      chunking: 'line',
-    }),
-    experimental_repairToolCall: async ({ toolCall, parameterSchema, error, system, messages: stepMessages, tools: availableTools }) => {
-      trace('experimental_repair_callback_entered', {
-        toolName: toolCall.toolName,
-        error: getErrorMessageText(error),
-      });
+                    messages: modelMessages,
+                    tools: instrumentedTools,
+                    timeout: STREAM_TIMEOUT_MS,
+                    stopWhen: stepCountIs(STEP_COUNT_LIMIT),
+                    maxRetries: 2,
+                    ...(Object.keys(instrumentedTools).length > 0 && { toolChoice: "auto" }),
+                    providerOptions: {
+                        google: {
+                            thinkingConfig: {
+                                thinkingBudget: 2048,
+                            },
+                        },
+                        anthropic: {
+                            thinking: {
+                                type: "enabled",
+                                budgetTokens: 12000,
+                            },
+                        },
+                    },
+                    experimental_transform: smoothStream({
+                        delayInMs: 5,
+                        chunking: "line",
+                    }),
+                    onChunk: ({ chunk }) => {
+                        if (firstChunkCaptured) {
+                            return;
+                        }
 
-      return repairToolCallInput({
-        toolCall,
-        parameterSchema,
-        error,
-        trace,
-        system,
-        messages: stepMessages,
-        tools: availableTools,
-      });
-    },
-    onError: (error) => {
-      const rawErrorMessage = getErrorMessageText(error) ?? '';
-      const rawLower = rawErrorMessage.toLowerCase();
+                        firstChunkCaptured = true;
+                        trace("stream_first_chunk", {
+                            firstChunkMs: Date.now() - modelStreamStartedAt,
+                            chunkType:
+                                chunk && typeof chunk === "object" && "type" in chunk
+                                    ? String((chunk as { type?: unknown }).type ?? "unknown")
+                                    : typeof chunk,
+                        });
+                    },
+                    experimental_repairToolCall: async ({
+                        toolCall,
+                        tools,
+                        inputSchema,
+                        error,
+                    }) => {
+                        if (NoSuchToolError.isInstance(error)) {
+                            return null;
+                        }
 
-      sawToolCallingFailure =
-        rawLower.includes('tool call validation failed') ||
-        rawLower.includes('invalid_request_error');
+                        const tool =
+                            tools[toolCall.toolName as keyof typeof tools];
 
-      const detailed = getDetailedErrorMessage(error);
-      const shouldRecommendSwitch =
-        selectedModel === 'llama4' &&
-        hasTools &&
-        !modelAutoSwitched &&
-        sawToolCallingFailure;
+                        const { output: repairedArgs } = await streamText({
+                            model: model.languageModel(executionModel),
+                            output: Output.object({ schema: tool.inputSchema }),
+                            prompt: [
+                                `The model tried to call the tool "${toolCall.toolName}"` +
+                                    ` with the following inputs:`,
+                                JSON.stringify(toolCall.input),
+                                `The tool accepts the following schema:`,
+                                JSON.stringify(inputSchema(toolCall)),
+                                "Please fix the inputs.",
+                            ].join("\n"),
+                        });
 
-      lastErrorMessageForUser = shouldRecommendSwitch
-        ? `${detailed}\n\nSugerencia: cambia el modelo a qwen3-32b para una mayor estabilidad cuando uses tools.`
-        : detailed;
+                        return {
+                            ...toolCall,
+                            input: JSON.stringify(repairedArgs),
+                        };
+                    },
+                    onError: (error) => {
+                        const rawErrorMessage =
+                            getErrorMessageText(error) ?? "";
+                        const rawLower = rawErrorMessage.toLowerCase();
 
-      trace('stream_on_error', {
-        error: rawErrorMessage,
-        sawToolCallingFailure,
-        shouldRecommendSwitch,
-      });
-      console.error(JSON.stringify(error, null, 2));
-    },
-    async onFinish({ response }) {
-      responseCompleted = true;
-      clearTimeout(streamTimeoutId);
-      trace('stream_on_finish', {
-        responseMessageCount: response.messages.length,
-      });
+                        sawToolCallingFailure =
+                            rawLower.includes("tool call validation failed") ||
+                            rawLower.includes("invalid_request_error");
 
-      let allMessages = appendResponseMessages({
-        messages,
-        responseMessages: response.messages,
-      });
+                        const detailed = getDetailedErrorMessage(error);
+                        const shouldRecommendSwitch =
+                            selectedModel === "llama4" &&
+                            hasTools &&
+                            !modelAutoSwitched &&
+                            sawToolCallingFailure;
 
-      allMessages = pruneNonRenderableAssistantMessages(allMessages);
+                        lastErrorMessageForUser = shouldRecommendSwitch
+                            ? `${detailed}\n\nSugerencia: cambia el modelo a qwen3-32b para una mayor estabilidad cuando uses tools.`
+                            : detailed;
 
-      const newTurnMessages = allMessages.slice(messages.length);
-      const hasAssistantTextInCurrentTurn = newTurnMessages.some(
-        (message) => message.role === 'assistant' && hasTextPart(message),
-      );
+                        trace("stream_on_error", {
+                            error: rawErrorMessage,
+                            sawToolCallingFailure,
+                            shouldRecommendSwitch,
+                        });
+                        console.error(JSON.stringify(error, null, 2));
+                    },
+                    async onFinish({ response, usage }) {
+                        responseCompleted = true;
+                        clearTimeout(streamTimeoutId);
+                        trace("stream_on_finish", {
+                            response,
+                            usage,
+                        });
+                        const cleanupStartedAt = Date.now();
+                        await cleanup();
+                        trace("cleanup_finished", {
+                            cleanupMs: Date.now() - cleanupStartedAt,
+                        });
+                    },
+                });
 
-      if (sawToolCallingFailure) {
-        registerToolCallingFailure({
-          userId,
-          chatId: id,
-          selectedModel,
-          hasTools,
+                dataStream.merge(
+                    result.toUIMessageStream({
+                        sendReasoning: true,
+                        onError: (error) => {
+                            const message = getErrorMessageText(error) ?? "";
+                            trace("merged_stream_error", {
+                                error: message,
+                            });
+                            return message || "An error occurred while streaming the response.";
+                        },
+                    }),
+                );
+            },
+            generateId: () => nanoid(),
+            onFinish: async ({ messages: finishedMessage }) => {
+                for (const message of finishedMessage) {
+                    const existingMessage = messages.find(
+                        (m) => m.id === message.id,
+                    );
+                    if (existingMessage) {
+                        await updateMessage({
+                            id: message.id,
+                            parts: message.parts as MessagePart[],
+                        });
+                    } else {
+                        await saveMessage({
+                            id: message.id,
+                            chatId: id,
+                            role: message.role,
+                            parts: message.parts as MessagePart[],
+                            createdAt: new Date(),
+                        });
+                    }
+                }
+
+                if (isNewChat) {
+                    trace("chat_title_summarize_started");
+                    void (async () => {
+                        try {
+                            const summarizedTitle = await generateTitle(finishedMessage);
+                            await saveChat({
+                                id,
+                                userId,
+                                title: summarizedTitle,
+                            });
+                            trace("chat_title_summarized", {
+                                title: summarizedTitle,
+                            });
+                        } catch (error) {
+                            trace("chat_title_summarize_failed", {
+                                error: getErrorMessageText(error),
+                            });
+                        }
+                    })();
+                }
+            },
+            onError: (error) => {
+                const message = getErrorMessageText(error) ?? "";
+                trace("ui_message_stream_error", {
+                    error: message,
+                });
+                console.error("UI Message Stream Error:", error);
+                return (
+                    lastErrorMessageForUser ??
+                    "An error occurred while generating the response."
+                );
+            },
         });
 
-        trace('model_policy_failure_registered', {
-          selectedModel,
-          executionModel,
+        req.signal.addEventListener("abort", async () => {
+            clearTimeout(streamTimeoutId);
+            trace("request_abort_event", {
+                responseCompleted,
+                reason: getErrorMessageText(req.signal.reason),
+            });
+
+            if (!responseCompleted) {
+                console.log("Request aborted, cleaning up resources");
+                try {
+                    const cleanupStartedAt = Date.now();
+                    await cleanup();
+                    trace("abort_cleanup_finished", {
+                        cleanupMs: Date.now() - cleanupStartedAt,
+                    });
+                } catch (error) {
+                    console.error("Error during cleanup on abort:", error);
+                    trace("abort_cleanup_failed", {
+                        error: getErrorMessageText(error),
+                    });
+                }
+            }
         });
-      } else if (hasAssistantTextInCurrentTurn) {
-        registerSuccessfulTurn({
-          userId,
-          chatId: id,
-          selectedModel,
-          hasTools,
+
+        trace("stream_response_created");
+
+        return createUIMessageStreamResponse({
+            stream,
+            headers: {
+                "X-Chat-ID": id,
+                "X-Trace-ID": requestId,
+                "X-Selected-Model": selectedModel,
+                "X-Execution-Model": executionModel,
+                "X-Model-Auto-Switched": modelAutoSwitched ? "1" : "0",
+            },
         });
-
-        trace('model_policy_success_registered', {
-          selectedModel,
-          executionModel,
+    } catch (error) {
+        const message = getErrorMessageText(error) ?? "";
+        trace("request_error", {
+            error: message,
         });
-      }
-
-      if (!hasAssistantTextInCurrentTurn) {
-        trace('assistant_text_missing_fallback_added');
-        const fallbackText = lastErrorMessageForUser
-          ? `${lastErrorMessageForUser}\n\nSi quieres, vuelve a intentarlo y lo reintento automáticamente con los parámetros corregidos.`
-          : 'No pude generar una respuesta útil esta vez. Inténtalo de nuevo.';
-
-        allMessages.push({
-          id: nanoid(),
-          role: 'assistant',
-          parts: [{ type: 'text', text: fallbackText }],
-        } as UIMessage);
-      }
-
-      const saveChatStartedAt = Date.now();
-      await saveChat({
-        id,
-        userId,
-        messages: allMessages,
-      });
-      trace('save_chat_finished', {
-        saveChatMs: Date.now() - saveChatStartedAt,
-      });
-
-      const dbMessages = convertToDBMessages(allMessages, id);
-      const saveMessagesStartedAt = Date.now();
-      await saveMessages({ messages: dbMessages });
-      trace('save_messages_finished', {
-        saveMessagesMs: Date.now() - saveMessagesStartedAt,
-        dbMessageCount: dbMessages.length,
-      });
-
-      const cleanupStartedAt = Date.now();
-      await cleanup();
-      trace('cleanup_finished', {
-        cleanupMs: Date.now() - cleanupStartedAt,
-      });
+        console.error("Request Error:", error);
+        return new Response(
+            JSON.stringify({
+                error: "An error occurred while processing the request.",
+                details: message,
+            }),
+            {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+            },
+        );
     }
-  });
-
-  req.signal.addEventListener('abort', async () => {
-    clearTimeout(streamTimeoutId);
-    trace('request_abort_event', {
-      responseCompleted,
-      reason: getErrorMessageText(req.signal.reason),
-    });
-
-    if (!responseCompleted) {
-      console.log("Request aborted, cleaning up resources");
-      try {
-        const cleanupStartedAt = Date.now();
-        await cleanup();
-        trace('abort_cleanup_finished', {
-          cleanupMs: Date.now() - cleanupStartedAt,
-        });
-      } catch (error) {
-        console.error("Error during cleanup on abort:", error);
-        trace('abort_cleanup_failed', {
-          error: getErrorMessageText(error),
-        });
-      }
-    }
-  });
-
-  trace('stream_response_created');
-  result.consumeStream();
-  return result.toDataStreamResponse({
-    sendReasoning: true,
-    headers: {
-      'X-Chat-ID': id,
-      'X-Trace-ID': requestId,
-      'X-Selected-Model': selectedModel,
-      'X-Execution-Model': executionModel,
-      'X-Model-Auto-Switched': modelAutoSwitched ? '1' : '0',
-    },
-    getErrorMessage: (error) => {
-      clearTimeout(streamTimeoutId);
-      const message = getDetailedErrorMessage(error);
-      trace('stream_error_message_sent', {
-        error: getErrorMessageText(error),
-        userMessage: message,
-      });
-      console.error(error);
-      return message;
-    },
-  });
 }

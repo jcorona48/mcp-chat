@@ -54,6 +54,26 @@ export async function saveMessages({
   }
 }
 
+export async function saveMessage(message: DBMessage ) {
+  try {
+    return await db
+      .insert(messages)
+      .values(message)
+      .onConflictDoUpdate({
+        target: messages.id,
+        set: {
+          chatId: message.chatId,
+          role: message.role,
+          parts: message.parts,
+          createdAt: message.createdAt,
+        },
+      });
+  } catch (error) {
+    console.error('Failed to save message in database', error);
+    throw error;
+  }
+}
+
 // Function to convert AI messages to DB format
 export function convertToDBMessages(aiMessages: AIMessage[], chatId: string): DBMessage[] {
   return aiMessages.map(msg => {
@@ -97,6 +117,34 @@ export function convertToDBMessages(aiMessages: AIMessage[], chatId: string): DB
       createdAt: new Date()
     };
   });
+}
+
+export function convertToDBMessage(aiMessage: AIMessage, chatId: string): DBMessage {
+  const messageId = aiMessage.id || nanoid();
+
+  let parts: MessagePart[];
+
+  if (aiMessage.parts) {
+    parts = aiMessage.parts;
+  } else if (typeof aiMessage.content === 'string') {
+    parts = [{ type: 'text', text: aiMessage.content }];
+  } else if (Array.isArray(aiMessage.content)) {
+    if (aiMessage.content.every(item => typeof item === 'object' && item !== null)) {
+      parts = aiMessage.content as MessagePart[];
+    } else {
+      parts = [{ type: 'text', text: JSON.stringify(aiMessage.content) }];
+    }
+  } else {
+    parts = [{ type: 'text', text: String(aiMessage.content) }];
+  }
+
+  return {
+    id: messageId,
+    chatId,
+    role: aiMessage.role,
+    parts,
+    createdAt: new Date()
+  };
 }
 
 // Convert DB messages to UI format
@@ -254,7 +302,7 @@ export async function getChats(userId: string) {
   });
 }
 
-export async function getChatById(id: string, userId: string): Promise<ChatWithMessages | null> {
+export async function getChatById(id: string, userId: string, withMessages: boolean = true): Promise<ChatWithMessages | null> {
   const chat = await db.query.chats.findFirst({
     where: and(
       eq(chats.id, id),
@@ -264,15 +312,19 @@ export async function getChatById(id: string, userId: string): Promise<ChatWithM
 
   if (!chat) return null;
 
-  const chatMessages = await db.query.messages.findMany({
-    where: eq(messages.chatId, id),
-    orderBy: [messages.createdAt]
-  });
+  const chatMessages = withMessages
+    ? await db.query.messages.findMany({
+        where: eq(messages.chatId, id),
+        orderBy: [messages.createdAt]
+      })
+    : [];
 
   return {
     ...chat,
     messages: chatMessages
   };
+
+
 }
 
 export async function deleteChat(id: string, userId: string) {
@@ -283,3 +335,18 @@ export async function deleteChat(id: string, userId: string) {
     )
   );
 } 
+
+export async function updateMessage({
+  id,
+  parts
+}: {
+  id: string;
+  parts: MessagePart[];
+}) {
+  await db
+    .update(messages)
+    .set({
+      parts
+    })
+    .where(eq(messages.id, id));
+}
