@@ -249,6 +249,8 @@ export default function Chat() {
         hydratedChatIdRef.current = chatId;
     }, [chatId, initialMessages, isMounted, messages.length, setMessages]);
 
+    const hasNavigatedRef = useRef(false);
+
     const handleSubmit = useCallback(
         (e: React.FormEvent<HTMLFormElement>) => {
             e.preventDefault();
@@ -261,15 +263,24 @@ export default function Chat() {
                 status,
             });
 
-            if (!chatId && generatedChatId && typeof window !== "undefined") {
-                router.push(`/chat/${generatedChatId}`);
-            }
-
             sendMessage({ text: input });
             setInput("");
         },
         [input, sendMessage, chatId, generatedChatId, status],
     );
+
+    const navigateToNewChat = useCallback(() => {
+        if (!chatId && generatedChatId && !hasNavigatedRef.current) {
+            hasNavigatedRef.current = true;
+            router.push(`/chat/${generatedChatId}`);
+        }
+    }, [chatId, generatedChatId, router]);
+
+    useEffect(() => {
+        if (status === "ready" && messages.length > 0 && !chatId) {
+            navigateToNewChat();
+        }
+    }, [status, messages.length, chatId, navigateToNewChat]);
 
     // Custom submit handler
     const handleFormSubmit = useCallback(

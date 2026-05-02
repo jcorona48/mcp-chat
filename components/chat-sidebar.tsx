@@ -187,7 +187,7 @@ export function ChatSidebar() {
             </div>
             {!isCollapsed && (
               <div className="font-semibold text-lg text-foreground/90">
-                MCP
+                MceChat AI
               </div>
             )}
           </div>
@@ -483,15 +483,6 @@ export function ChatSidebar() {
                 >
                   <Key className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
                   API Keys
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    window.open("https://git.new/s-mcp", "_blank");
-                  }}
-                >
-                  <GitBranchPlus className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  GitHub
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <div className="flex items-center justify-between w-full">
