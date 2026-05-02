@@ -1,6 +1,46 @@
 import { experimental_createMCPClient as createMCPClient } from 'ai';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+const DEFAULT_MCP_INIT_TIMEOUT_MS = 12000;
+const CHAT_DEBUG_ENABLED = process.env.CHAT_DEBUG === '1';
+
+function mcpDebugLog(stage: string, extra?: Record<string, unknown>) {
+  if (!CHAT_DEBUG_ENABLED) {
+    return;
+  }
+
+  console.log(
+    JSON.stringify({
+      scope: 'mcp-client',
+      stage,
+      ...extra,
+    })
+  );
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export interface KeyValuePair {
   key: string;
   value: string;
@@ -24,8 +64,14 @@ export interface MCPClientManager {
  */
 export async function initializeMCPClients(
   mcpServers: MCPServerConfig[] = [],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  initTimeoutMs: number = DEFAULT_MCP_INIT_TIMEOUT_MS
 ): Promise<MCPClientManager> {
+  mcpDebugLog('init_started', {
+    serverCount: mcpServers.length,
+    initTimeoutMs,
+  });
+
   // Initialize tools
   let tools = {};
   const mcpClients: any[] = [];
@@ -33,6 +79,12 @@ export async function initializeMCPClients(
   // Process each MCP server configuration
   for (const mcpServer of mcpServers) {
     try {
+      const serverStartedAt = Date.now();
+      mcpDebugLog('server_init_started', {
+        url: mcpServer.url,
+        type: mcpServer.type,
+      });
+
       const headers = mcpServer.headers?.reduce((acc, header) => {
         if (header.key) acc[header.key] = header.value || '';
         return acc;
@@ -50,10 +102,27 @@ export async function initializeMCPClients(
           },
         });
 
-      const mcpClient = await createMCPClient({ transport });
+      const mcpClient = await withTimeout(
+        createMCPClient({ transport }),
+        initTimeoutMs,
+        `MCP client initialization for ${mcpServer.url}`
+      );
+      mcpDebugLog('server_client_created', {
+        url: mcpServer.url,
+        elapsedMs: Date.now() - serverStartedAt,
+      });
       mcpClients.push(mcpClient);
 
-      const mcptools = await mcpClient.tools();
+      const mcptools = await withTimeout(
+        mcpClient.tools(),
+        initTimeoutMs,
+        `MCP tools discovery for ${mcpServer.url}`
+      );
+      mcpDebugLog('server_tools_discovered', {
+        url: mcpServer.url,
+        elapsedMs: Date.now() - serverStartedAt,
+        toolCount: Object.keys(mcptools).length,
+      });
 
       console.log(`MCP tools from ${mcpServer.url}:`, Object.keys(mcptools));
 
@@ -61,6 +130,10 @@ export async function initializeMCPClients(
       tools = { ...tools, ...mcptools };
     } catch (error) {
       console.error("Failed to initialize MCP client:", error);
+      mcpDebugLog('server_init_failed', {
+        url: mcpServer.url,
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Continue with other servers instead of failing the entire request
     }
   }
@@ -68,9 +141,17 @@ export async function initializeMCPClients(
   // Register cleanup for all clients if an abort signal is provided
   if (abortSignal && mcpClients.length > 0) {
     abortSignal.addEventListener('abort', async () => {
+      mcpDebugLog('abort_received', {
+        clientCount: mcpClients.length,
+      });
       await cleanupMCPClients(mcpClients);
     });
   }
+
+  mcpDebugLog('init_finished', {
+    connectedClientCount: mcpClients.length,
+    mergedToolCount: Object.keys(tools).length,
+  });
 
   return {
     tools,
@@ -83,13 +164,23 @@ export async function initializeMCPClients(
  * Clean up MCP clients
  */
 async function cleanupMCPClients(clients: any[]): Promise<void> {
+  const cleanupStartedAt = Date.now();
+
   await Promise.all(
     clients.map(async (client) => {
       try {
         await client.disconnect?.();
       } catch (error) {
         console.error("Error during MCP client cleanup:", error);
+        mcpDebugLog('client_cleanup_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     })
   );
+
+  mcpDebugLog('cleanup_finished', {
+    clientCount: clients.length,
+    elapsedMs: Date.now() - cleanupStartedAt,
+  });
 } 

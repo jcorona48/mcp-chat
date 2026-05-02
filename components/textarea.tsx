@@ -1,6 +1,6 @@
 import { modelID } from "@/ai/providers";
 import { Textarea as ShadcnTextarea } from "@/components/ui/textarea";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Loader2, X } from "lucide-react";
 import { ModelPicker } from "./model-picker";
 
 interface InputProps {
@@ -47,14 +47,14 @@ export const Textarea = ({
       <button
         type={isStreaming ? "button" : "submit"}
         onClick={isStreaming ? stop : undefined}
-        disabled={
-          (!isStreaming && !input.trim()) ||
-          (isStreaming && status === "submitted")
-        }
-        className="absolute right-2 bottom-2 rounded-full p-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed transition-all duration-200"
+        disabled={!isStreaming && !input.trim()}
+        className="absolute right-2 bottom-2 rounded-full p-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed transition-all duration-200 group"
       >
         {isStreaming ? (
-          <Loader2 className="h-4 w-4 text-primary-foreground animate-spin" />
+          <>
+            <Loader2 className="h-4 w-4 text-primary-foreground animate-spin group-hover:hidden" />
+            <X className="h-4 w-4 text-primary-foreground hidden group-hover:block" />
+          </>
         ) : (
           <ArrowUp className="h-4 w-4 text-primary-foreground" />
         )}

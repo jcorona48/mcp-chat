@@ -176,7 +176,7 @@ export function ChatSidebar() {
             >
               <Image
                 src="/scira.png"
-                alt="Scira Logo"
+                alt="MceChat AI Logo"
                 width={24}
                 height={24}
                 className="absolute transform scale-75"

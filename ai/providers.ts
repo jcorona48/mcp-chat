@@ -1,5 +1,4 @@
 import { createGroq } from "@ai-sdk/groq";
-import { createXai } from "@ai-sdk/xai";
 
 import {
   customProvider,
@@ -38,10 +37,6 @@ const groqClient = createGroq({
   apiKey: getApiKey('GROQ_API_KEY'),
 });
 
-const xaiClient = createXai({
-  apiKey: getApiKey('XAI_API_KEY'),
-});
-
 const languageModels = {
   "qwen3-32b": wrapLanguageModel(
     {
@@ -49,9 +44,10 @@ const languageModels = {
       middleware
     }
   ),
-  "grok-3-mini": xaiClient("grok-3-mini-latest"),
   "kimi-k2": groqClient('moonshotai/kimi-k2-instruct'),
-  "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct')
+  "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct'),
+  "gpt-oss-120b": groqClient('openai/gpt-oss-120b'),
+  
 };
 
 export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
@@ -69,20 +65,20 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
     apiVersion: "qwen3-32b",
     capabilities: ["Reasoning", "Efficient", "Agentic"]
   },
-  "grok-3-mini": {
-    provider: "XAI",
-    name: "Grok 3 Mini",
-    description: "Latest version of XAI's Grok 3 Mini with strong reasoning and coding capabilities.",
-    apiVersion: "grok-3-mini-latest",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
   "llama4": {
     provider: "Groq",
     name: "Llama 4",
     description: "Latest version of Meta's Llama 4 with good balance of capabilities.",
     apiVersion: "llama-4-scout-17b-16e-instruct",
     capabilities: ["Balanced", "Efficient", "Agentic"]
-  }
+  },
+  "gpt-oss-120b": {
+    provider: "Groq",
+    name: "GPT-OSS 120B",
+    description: "Open-source version of GPT with strong reasoning and coding capabilities.",
+    apiVersion: "gpt-oss-120b",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
 };
 
 // Update API keys when localStorage changes (for runtime updates)
@@ -103,4 +99,4 @@ export type modelID = keyof typeof languageModels;
 
 export const MODELS = Object.keys(languageModels);
 
-export const defaultModel: modelID = "kimi-k2";
+export const defaultModel: modelID = "gpt-oss-120b";

@@ -213,13 +213,20 @@ export async function saveChat({ id, userId, messages: aiMessages, title }: Save
         eq(chats.userId, userId)
       ));
   } else {
-    // Create new chat
+    // Create new chat, or update the existing row if another save won the race
     await db.insert(chats).values({
       id: chatId,
       userId,
       title: chatTitle,
       createdAt: new Date(),
       updatedAt: new Date()
+    }).onConflictDoUpdate({
+      target: chats.id,
+      set: {
+        title: chatTitle,
+        updatedAt: new Date(),
+      },
+      where: eq(chats.userId, userId),
     });
   }
 
