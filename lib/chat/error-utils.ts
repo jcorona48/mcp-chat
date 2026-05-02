@@ -130,5 +130,18 @@ export function getDetailedErrorMessage(error: unknown): string {
       : message;
   }
 
+  if (
+    message.toLowerCase().includes('token') && (
+      message.toLowerCase().includes('limit') ||
+      message.toLowerCase().includes('exceed') ||
+      message.toLowerCase().includes('maximum') ||
+      message.toLowerCase().includes('context length')
+    ) ||
+    message.toLowerCase().includes('context_length_exceeded') ||
+    message.toLowerCase().includes('max_tokens')
+  ) {
+    return 'Se excedió el límite de tokens del modelo. Se intentará automáticamente con otro modelo.';
+  }
+
   return message;
 }

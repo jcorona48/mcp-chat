@@ -149,6 +149,24 @@ export default function Chat() {
         );
     }, [chatData]);
 
+    const transportConfigRef = useRef({
+        selectedModel,
+        mcpServers: mcpServersForApi,
+        chatId: activeChatId,
+        userId,
+    });
+
+    transportConfigRef.current = {
+        selectedModel,
+        mcpServers: mcpServersForApi,
+        chatId: activeChatId,
+        userId,
+    };
+
+    useEffect(() => {
+        console.log("[chat-ui] model changed", transportConfigRef.current.selectedModel);
+    }, [selectedModel]);
+
     const {
         messages,
         setMessages,
@@ -159,7 +177,7 @@ export default function Chat() {
         resumeStream,
         addToolApprovalResponse,
     } = useChat<ChatMessage>({
-        id: activeChatId, // Use generated ID if no chatId in URL
+        id: activeChatId,
         generateId: () => nanoid(),
         sendAutomaticallyWhen: ({ messages: currentMessages }) => {
             const lastMessage = currentMessages.at(-1);
@@ -177,11 +195,23 @@ export default function Chat() {
         transport: new DefaultChatTransport({
             api: "/api/chat",
             fetch: fetchWithErrorHandlers,
-            body: {
-                selectedModel,
-                mcpServers: mcpServersForApi,
-                chatId: activeChatId, // Use generated ID if no chatId in URL
-                userId,
+            prepareSendMessagesRequest: ({ messages }) => {
+                const config = transportConfigRef.current;
+                console.log("[chat-ui] sendMessages", {
+                    selectedModel: config.selectedModel,
+                    activeChatId: config.chatId,
+                    userId: config.userId,
+                    messageCount: messages.length,
+                });
+                return {
+                    body: {
+                        selectedModel: config.selectedModel,
+                        mcpServers: config.mcpServers,
+                        chatId: config.chatId,
+                        userId: config.userId,
+                        messages,
+                    },
+                };
             },
         }),
         experimental_throttle: 100,
