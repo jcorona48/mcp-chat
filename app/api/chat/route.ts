@@ -129,6 +129,12 @@ export async function POST(req: Request) {
     experimental_transform: smoothStream({ delayInMs: 20, chunking: 'word' }),
     onError: (error) => {
       console.error("Stream error:", JSON.stringify(error, null, 2));
+      if (error instanceof Error) {
+        if (error.message.includes("Rate limit")) {
+          return "Rate limit exceeded. Please try again later.";
+        }
+      }
+      return "An error occurred while processing your request.";
     }
   });
 
