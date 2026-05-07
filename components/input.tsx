@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ArrowUp } from "lucide-react";
 import { Input as ShadcnInput } from "./ui/input";
 
@@ -16,13 +17,14 @@ export const Input = ({
   status,
   stop,
 }: InputProps) => {
+  const t = useTranslations("common");
   return (
     <div className="relative w-full">
       <ShadcnInput
         className="bg-secondary py-6 w-full rounded-xl pr-12"
         value={input}
         autoFocus
-        placeholder={"Say something..."}
+        placeholder={t("saySomething")}
         onChange={handleInputChange}
       />
       {status === "streaming" || status === "submitted" ? (

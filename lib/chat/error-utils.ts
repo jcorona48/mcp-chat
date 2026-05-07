@@ -1,3 +1,5 @@
+import { routing } from "@/i18n/routing";
+
 function tryParseJson(value: string): unknown {
   try {
     return JSON.parse(value);
@@ -5,6 +7,21 @@ function tryParseJson(value: string): unknown {
     return null;
   }
 }
+
+function getLocale(): "en" | "es" {
+  return routing.defaultLocale;
+}
+
+const messages: Record<string, { en: string; es: string }> = {
+  anErrorOccurred: {
+    en: "An error occurred.",
+    es: "Ocurrió un error.",
+  },
+  requestTimeout: {
+    en: "The request took too long and was cancelled. Please try again.",
+    es: "La solicitud tardó demasiado y fue cancelada. Inténtalo de nuevo.",
+  },
+};
 
 export function getErrorMessageText(error: unknown): string | null {
   if (typeof error === 'string') {
@@ -80,13 +97,14 @@ export function getErrorMessageText(error: unknown): string | null {
 }
 
 export function getDetailedErrorMessage(error: unknown): string {
+  const locale = getLocale();
   const message = getErrorMessageText(error);
   if (!message) {
-    return 'An error occurred.';
+    return messages.anErrorOccurred[locale];
   }
 
   if (message.toLowerCase().includes('aborted') || message.toLowerCase().includes('timeout')) {
-    return 'La solicitud tardó demasiado y fue cancelada. Inténtalo de nuevo.';
+    return messages.requestTimeout[locale];
   }
 
   if (message.toLowerCase().includes('tool call validation failed') || message.toLowerCase().includes('invalid_request_error')) {
@@ -103,6 +121,14 @@ export function getDetailedErrorMessage(error: unknown): string {
       ? ` (se esperaba ${expectedTypeMatch[1]} y llegó ${gotTypeMatch[1]})`
       : '';
 
+    if (locale === 'en') {
+      const enPathLabel = schemaPathMatch ? ` at ${schemaPathMatch[1]}` : '';
+      const enTypeLabel = expectedTypeMatch && gotTypeMatch
+        ? ` (expected ${expectedTypeMatch[1]} but got ${gotTypeMatch[1]})`
+        : '';
+      return `The tool${toolLabel} received invalid parameters${enPathLabel}${enTypeLabel}. I tried to fix it automatically, but this turn could not be completed. Retry the message.`;
+    }
+
     return `La herramienta${toolLabel} recibió parámetros inválidos${pathLabel}${typeLabel}. Intenté corregirlo automáticamente, pero no se pudo completar este turno. Reintenta el mensaje.`;
   }
 
@@ -116,6 +142,22 @@ export function getDetailedErrorMessage(error: unknown): string {
     const retryMatch = message.match(/Please try again in ([^.]+\.?[^.]*)/i);
 
     const detailsLine = [
+      modelMatch ? `model: ${modelMatch[1]}` : null,
+      organizationMatch ? `organization: ${organizationMatch[1]}` : null,
+      tierMatch ? `tier: ${tierMatch[1]}` : null,
+      limitMatch && usedMatch && requestedMatch
+        ? `tokens: ${usedMatch[1]}/${limitMatch[1]} used, ${requestedMatch[1]} requested`
+        : null,
+      retryMatch ? `retry in ${retryMatch[1]}` : null,
+    ].filter(Boolean).join(' | ');
+
+    if (locale === 'en') {
+      return detailsLine
+        ? `Model usage limit reached. ${detailsLine}.`
+        : message;
+    }
+
+    const esDetailsLine = [
       modelMatch ? `modelo: ${modelMatch[1]}` : null,
       organizationMatch ? `organización: ${organizationMatch[1]}` : null,
       tierMatch ? `tier: ${tierMatch[1]}` : null,
@@ -125,8 +167,8 @@ export function getDetailedErrorMessage(error: unknown): string {
       retryMatch ? `reintenta en ${retryMatch[1]}` : null,
     ].filter(Boolean).join(' | ');
 
-    return detailsLine
-      ? `Se alcanzó el límite de uso del modelo. ${detailsLine}.`
+    return esDetailsLine
+      ? `Se alcanzó el límite de uso del modelo. ${esDetailsLine}.`
       : message;
   }
 
@@ -140,6 +182,9 @@ export function getDetailedErrorMessage(error: unknown): string {
     message.toLowerCase().includes('context_length_exceeded') ||
     message.toLowerCase().includes('max_tokens')
   ) {
+    if (locale === 'en') {
+      return 'Model token limit exceeded. Will automatically try with another model.';
+    }
     return 'Se excedió el límite de tokens del modelo. Se intentará automáticamente con otro modelo.';
   }
 

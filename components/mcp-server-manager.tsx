@@ -29,6 +29,7 @@ import {
   Power,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import {
   Accordion,
   AccordionContent,
@@ -104,6 +105,7 @@ const StatusIndicator = ({
   onClick?: () => void;
   hoverInfo?: string;
 }) => {
+  const t = useTranslations("mcp");
   const isClickable = !!onClick;
   const hasHoverInfo = !!hoverInfo;
 
@@ -118,7 +120,7 @@ const StatusIndicator = ({
           <div className={className} onClick={onClick}>
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs text-green-500 hover:underline">
-              Connected
+              {t("connected")}
             </span>
           </div>
         );
@@ -126,14 +128,14 @@ const StatusIndicator = ({
         return (
           <div className={className} onClick={onClick}>
             <RefreshCw className="w-3 h-3 text-amber-500 animate-spin" />
-            <span className="text-xs text-amber-500">Connecting</span>
+            <span className="text-xs text-amber-500">{t("connecting")}</span>
           </div>
         );
       case "error":
         return (
           <div className={className} onClick={onClick}>
             <AlertTriangle className="w-3 h-3 text-red-500" />
-            <span className="text-xs text-red-500 hover:underline">Error</span>
+            <span className="text-xs text-red-500 hover:underline">{t("error")}</span>
           </div>
         );
       case "disconnected":
@@ -141,7 +143,7 @@ const StatusIndicator = ({
         return (
           <div className={className} onClick={onClick}>
             <div className="w-2 h-2 rounded-full bg-gray-400" />
-            <span className="text-xs text-muted-foreground">Disconnected</span>
+            <span className="text-xs text-muted-foreground">{t("disconnected")}</span>
           </div>
         );
     }
@@ -169,10 +171,11 @@ const StatusIndicator = ({
 
 // Add a component to display tools
 const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
+  const t = useTranslations("mcp");
   if (!tools || tools.length === 0) {
     return (
       <div className="text-xs text-muted-foreground italic">
-        No tools available
+        {t("noToolsAvailable")}
       </div>
     );
   }
@@ -180,7 +183,7 @@ const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
   return (
     <div className="space-y-1">
       <div className="text-xs font-medium text-muted-foreground mb-1">
-        Tools ({tools.length}):
+        {t("noToolsAvailable").split(" ")[0]} ({tools.length}):
       </div>
       <div className="flex flex-wrap gap-1">
         {tools.slice(0, 3).map((tool, index) => (
@@ -210,7 +213,7 @@ const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
         ))}
         {tools.length > 3 && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
-            +{tools.length - 3} more
+            +{tools.length - 3} {t("more")}
           </span>
         )}
       </div>
@@ -226,6 +229,7 @@ export const MCPServerManager = ({
   open,
   onOpenChange,
 }: MCPServerManagerProps) => {
+  const t = useTranslations("mcp");
   const [newServer, setNewServer] =
     useState<Omit<MCPServer, "id">>(INITIAL_NEW_SERVER);
   const [view, setView] = useState<"list" | "add">("list");
@@ -268,12 +272,12 @@ export const MCPServerManager = ({
 
   const addServer = () => {
     if (!newServer.name) {
-      toast.error("Server name is required");
+      toast.error(t("serverNameRequired"));
       return;
     }
 
     if (!newServer.url) {
-      toast.error("Server URL is required");
+      toast.error(t("serverUrlRequired"));
       return;
     }
 
@@ -281,7 +285,7 @@ export const MCPServerManager = ({
     const updatedServers = [...servers, { ...newServer, id }];
     onServersChange(updatedServers);
 
-    toast.success(`Added MCP server: ${newServer.name}`);
+    toast.success(t("addedServer", { name: newServer.name }));
     setView("list");
     setNewServer(INITIAL_NEW_SERVER);
     setNewEnvVar({ key: "", value: "" });
@@ -295,34 +299,30 @@ export const MCPServerManager = ({
     const updatedServers = servers.filter((server) => server.id !== id);
     onServersChange(updatedServers);
 
-    // If the removed server was selected, remove it from selected servers
     if (selectedServers.includes(id)) {
       onSelectedServersChange(
         selectedServers.filter((serverId) => serverId !== id)
       );
     }
 
-    toast.success("Server removed");
+    toast.success(t("serverRemoved"));
   };
 
   const toggleServer = (id: string) => {
     if (selectedServers.includes(id)) {
-      // Remove from selected servers but DON'T stop the server
       onSelectedServersChange(
         selectedServers.filter((serverId) => serverId !== id)
       );
       const server = servers.find((s) => s.id === id);
 
       if (server) {
-        toast.success(`Disabled MCP server: ${server.name}`);
+        toast.success(t("disabledServer", { name: server.name }));
       }
     } else {
-      // Add to selected servers
       onSelectedServersChange([...selectedServers, id]);
       const server = servers.find((s) => s.id === id);
 
       if (server) {
-        // Auto-start the server if it's disconnected
         if (
           !server.status ||
           server.status === "disconnected" ||
@@ -332,33 +332,32 @@ export const MCPServerManager = ({
           startServer(id)
             .then((success) => {
               if (success) {
-                console.log(`Server ${server.name} successfully connected`);
+                console.log(t("serverConnected", { name: server.name }));
               } else {
-                console.error(`Failed to connect server ${server.name}`);
+                console.error(t("failedToConnect", { name: server.name }));
               }
             })
             .catch((error) => {
-              console.error(`Error connecting server ${server.name}:`, error);
+              console.error(`${t("failedToConnect", { name: server.name })}:`, error);
               updateServerStatus(
                 server.id,
                 "error",
-                `Failed to connect: ${
+                `${t("failedToConnect")}: ${
                   error instanceof Error ? error.message : String(error)
                 }`
               );
             });
         }
 
-        toast.success(`Enabled MCP server: ${server.name}`);
+        toast.success(t("enabledServer", { name: server.name }));
       }
     }
   };
 
   const clearAllServers = () => {
     if (selectedServers.length > 0) {
-      // Just deselect all servers without stopping them
       onSelectedServersChange([]);
-      toast.success("All MCP servers disabled");
+      toast.success(t("allServersDisabled"));
       resetAndClose();
     }
   };
@@ -508,18 +507,18 @@ export const MCPServerManager = ({
 
   const updateServer = () => {
     if (!newServer.name) {
-      toast.error("Server name is required");
+      toast.error(t("serverNameRequired"));
       return;
     }
     if (!newServer.url) {
-      toast.error("Server URL is required");
+      toast.error(t("serverUrlRequired"));
       return;
     }
     const updated = servers.map((s) =>
       s.id === editingServerId ? { ...newServer, id: editingServerId! } : s
     );
     onServersChange(updated);
-    toast.success(`Updated MCP server: ${newServer.name}`);
+    toast.success(t("updatedServer", { name: newServer.name }));
     setView("list");
     setEditingServerId(null);
     setNewServer(INITIAL_NEW_SERVER);
@@ -541,9 +540,9 @@ export const MCPServerManager = ({
         const success = await startServer(server.id);
 
         if (success) {
-          toast.success(`Started server: ${server.name}`);
+          toast.success(t("startedServer", { name: server.name }));
         } else {
-          toast.error(`Failed to start server: ${server.name}`);
+          toast.error(t("failedToStartServer", { name: server.name }));
         }
       } catch (error) {
         updateServerStatus(
@@ -552,7 +551,7 @@ export const MCPServerManager = ({
           `Error: ${error instanceof Error ? error.message : String(error)}`
         );
         toast.error(
-          `Error starting server: ${
+          `${t("errorStartingServer")}: ${
             error instanceof Error ? error.message : String(error)
           }`
         );
@@ -561,13 +560,13 @@ export const MCPServerManager = ({
       try {
         const success = await stopServer(server.id);
         if (success) {
-          toast.success(`Stopped server: ${server.name}`);
+          toast.success(t("stoppedServer", { name: server.name }));
         } else {
-          toast.error(`Failed to stop server: ${server.name}`);
+          toast.error(t("failedToStopServer", { name: server.name }));
         }
       } catch (error) {
         toast.error(
-          `Error stopping server: ${
+          `${t("errorStoppingServer")}: ${
             error instanceof Error ? error.message : String(error)
           }`
         );
@@ -580,20 +579,18 @@ export const MCPServerManager = ({
     e.stopPropagation();
 
     try {
-      // First stop it
       if (server.status === "connected" || server.status === "connecting") {
         await stopServer(server.id);
       }
 
-      // Then start it again (with delay to ensure proper cleanup)
       setTimeout(async () => {
         updateServerStatus(server.id, "connecting");
         const success = await startServer(server.id);
 
         if (success) {
-          toast.success(`Restarted server: ${server.name}`);
+          toast.success(t("restartedServer", { name: server.name }));
         } else {
-          toast.error(`Failed to restart server: ${server.name}`);
+          toast.error(t("failedToRestartServer", { name: server.name }));
         }
       }, 500);
     } catch (error) {
@@ -603,7 +600,7 @@ export const MCPServerManager = ({
         `Error: ${error instanceof Error ? error.message : String(error)}`
       );
       toast.error(
-        `Error restarting server: ${
+        `${t("errorRestartingServer")}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -631,15 +628,16 @@ export const MCPServerManager = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ServerIcon className="h-5 w-5 text-primary" />
-            MCP Server Configuration
+            {t("title")}
           </DialogTitle>
           <DialogDescription>
-            Connect to Model Context Protocol servers to access additional AI
-            tools.
+            {t("description")}
             {selectedServers.length > 0 && (
               <span className="block mt-1 text-xs font-medium text-primary">
-                {selectedServers.length} server
-                {selectedServers.length !== 1 ? "s" : ""} currently active
+                {t("activeServers", {
+                  count: selectedServers.length,
+                  plural: selectedServers.length === 1 ? "one" : "other",
+                })}
               </span>
             )}
           </DialogDescription>
@@ -651,9 +649,9 @@ export const MCPServerManager = ({
               <div className="flex-1 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium">Available Servers</h3>
+                    <h3 className="text-sm font-medium">{t("availableServers")}</h3>
                     <span className="text-xs text-muted-foreground">
-                      Select multiple servers to combine their tools
+                      {t("selectMultipleServers")}
                     </span>
                   </div>
                   <div className="overflow-y-auto pr-1 flex-1 gap-2.5 flex flex-col pb-16">
@@ -727,10 +725,10 @@ export const MCPServerManager = ({
                                     }
                                     className="p-1 rounded-full hover:bg-muted/70"
                                     aria-label={
-                                      isRunning ? "Stop server" : "Start server"
+                                      isRunning ? t("stopServer") : t("startServer")
                                     }
                                     title={
-                                      isRunning ? "Stop server" : "Start server"
+                                      isRunning ? t("stopServer") : t("startServer")
                                     }
                                   >
                                     <Power
@@ -745,8 +743,8 @@ export const MCPServerManager = ({
                                   <button
                                     onClick={(e) => restartServer(server, e)}
                                     className="p-1 rounded-full hover:bg-muted/70"
-                                    aria-label="Restart server"
-                                    title="Restart server"
+                                    aria-label={t("restartServer")}
+                                    title={t("restartServer")}
                                     disabled={server.status === "connecting"}
                                   >
                                     <RefreshCw
@@ -761,8 +759,8 @@ export const MCPServerManager = ({
                                   <button
                                     onClick={(e) => removeServer(server.id, e)}
                                     className="p-1 rounded-full hover:bg-muted/70"
-                                    aria-label="Remove server"
-                                    title="Remove server"
+                                    aria-label={t("removeServer")}
+                                    title={t("removeServer")}
                                   >
                                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                                   </button>
@@ -770,8 +768,8 @@ export const MCPServerManager = ({
                                   <button
                                     onClick={() => startEditing(server)}
                                     className="p-1 rounded-full hover:bg-muted/50"
-                                    aria-label="Edit server"
-                                    title="Edit server"
+                                    aria-label={t("editServerAction")}
+                                    title={t("editServerAction")}
                                   >
                                     <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                                   </button>
@@ -792,17 +790,17 @@ export const MCPServerManager = ({
                             )}
 
                             {/* Action Button */}
-                            <Button
-                              size="sm"
-                              className="w-full gap-1.5 hover:text-black hover:dark:text-white rounded-lg"
-                              variant={isActive ? "default" : "outline"}
-                              onClick={() => toggleServer(server.id)}
-                            >
-                              {isActive && (
-                                <CheckCircle className="h-3.5 w-3.5" />
-                              )}
-                              {isActive ? "Active" : "Enable Server"}
-                            </Button>
+                              <Button
+                                size="sm"
+                                className="w-full gap-1.5 hover:text-black hover:dark:text-white rounded-lg"
+                                variant={isActive ? "default" : "outline"}
+                                onClick={() => toggleServer(server.id)}
+                              >
+                                {isActive && (
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                )}
+                                {isActive ? t("active") : t("enableServer")}
+                              </Button>
                           </div>
                         );
                       })}
@@ -816,10 +814,10 @@ export const MCPServerManager = ({
                 </div>
                 <div className="text-center space-y-1">
                   <h3 className="text-base font-medium">
-                    No MCP Servers Added
+                    {t("noServersAdded")}
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-[300px]">
-                    Add your first MCP server to access additional AI tools
+                    {t("noServersDescription")}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-4">
@@ -829,7 +827,7 @@ export const MCPServerManager = ({
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 hover:text-primary transition-colors"
                   >
-                    Learn about MCP
+                    {t("learnAboutMCP")}
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
@@ -839,27 +837,27 @@ export const MCPServerManager = ({
         ) : (
           <div className="space-y-4 overflow-y-auto px-1 py-0.5 mb-14 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <h3 className="text-sm font-medium">
-              {editingServerId ? "Edit MCP Server" : "Add New MCP Server"}
+              {editingServerId ? t("editServer") : t("addNewServer")}
             </h3>
             <div className="space-y-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="name">Server Name</Label>
+                <Label htmlFor="name">{t("serverName")}</Label>
                 <Input
                   id="name"
                   value={newServer.name}
                   onChange={(e) =>
                     setNewServer({ ...newServer, name: e.target.value })
                   }
-                  placeholder="My MCP Server"
+                  placeholder={t("serverName")}
                   className="relative z-0"
                 />
               </div>
 
               <div className="grid gap-1.5">
-                <Label htmlFor="transport-type">Transport Type</Label>
+                <Label htmlFor="transport-type">{t("transportType")}</Label>
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">
-                    Choose how to connect to your MCP server:
+                    {t("chooseTransport")}
                   </p>
                   <div className="grid gap-2 grid-cols-2">
                     <button
@@ -881,7 +879,7 @@ export const MCPServerManager = ({
                       <div>
                         <p className="font-medium">SSE</p>
                         <p className="text-xs text-muted-foreground">
-                          Server-Sent Events
+                          {t("sseDescription")}
                         </p>
                       </div>
                     </button>
@@ -905,7 +903,7 @@ export const MCPServerManager = ({
                       <div>
                         <p className="font-medium">HTTP</p>
                         <p className="text-xs text-muted-foreground">
-                          Streamable HTTP
+                          {t("httpDescription")}
                         </p>
                       </div>
                     </button>
@@ -914,7 +912,7 @@ export const MCPServerManager = ({
               </div>
 
               <div className="grid gap-1.5">
-                <Label htmlFor="url">Server URL</Label>
+                <Label htmlFor="url">{t("serverUrl")}</Label>
                 <Input
                   id="url"
                   value={newServer.url}
@@ -925,8 +923,9 @@ export const MCPServerManager = ({
                   className="relative z-0"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Full URL to the {newServer.type === "sse" ? "SSE" : "HTTP"}{" "}
-                  endpoint of the MCP server
+                  {t("urlHint", {
+                    transport: newServer.type === "sse" ? "SSE" : "HTTP",
+                  })}
                 </p>
               </div>
 
@@ -934,7 +933,7 @@ export const MCPServerManager = ({
               <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="env-vars">
                   <AccordionTrigger className="text-sm py-2">
-                    Environment Variables
+                    {t("environmentVariables")}
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-3">
@@ -944,7 +943,7 @@ export const MCPServerManager = ({
                             htmlFor="env-key"
                             className="text-xs mb-1 block"
                           >
-                            Key
+                            {t("key")}
                           </Label>
                           <Input
                             id="env-key"
@@ -964,7 +963,7 @@ export const MCPServerManager = ({
                             htmlFor="env-value"
                             className="text-xs mb-1 block"
                           >
-                            Value
+                            {t("value")}
                           </Label>
                           <Input
                             id="env-value"
@@ -1026,7 +1025,7 @@ export const MCPServerManager = ({
                                       className="h-6 px-2"
                                       onClick={saveEditedEnvValue}
                                     >
-                                      Save
+                                      {t("save")}
                                     </Button>
                                   </div>
                                 ) : (
@@ -1078,12 +1077,11 @@ export const MCPServerManager = ({
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground text-center py-2">
-                          No environment variables added
+                          {t("noEnvVarsAdded")}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Environment variables will be passed to the MCP server
-                        process.
+                        {t("envVarsHint")}
                       </p>
                     </div>
                   </AccordionContent>
@@ -1091,7 +1089,7 @@ export const MCPServerManager = ({
 
                 <AccordionItem value="headers">
                   <AccordionTrigger className="text-sm py-2">
-                    HTTP Headers
+                    {t("httpHeaders")}
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-3">
@@ -1101,7 +1099,7 @@ export const MCPServerManager = ({
                             htmlFor="header-key"
                             className="text-xs mb-1 block"
                           >
-                            Key
+                            {t("key")}
                           </Label>
                           <Input
                             id="header-key"
@@ -1121,7 +1119,7 @@ export const MCPServerManager = ({
                             htmlFor="header-value"
                             className="text-xs mb-1 block"
                           >
-                            Value
+                            {t("value")}
                           </Label>
                           <Input
                             id="header-value"
@@ -1182,7 +1180,7 @@ export const MCPServerManager = ({
                                       className="h-6 px-2"
                                       onClick={saveEditedHeaderValue}
                                     >
-                                      Save
+                                      {t("save")}
                                     </Button>
                                   </div>
                                 ) : (
@@ -1237,12 +1235,13 @@ export const MCPServerManager = ({
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground text-center py-2">
-                          No headers added
+                          {t("noHeadersAdded")}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        HTTP headers will be sent with requests to the{" "}
-                        {newServer.type === "sse" ? "SSE" : "HTTP"} endpoint.
+                        {t("httpHeadersHint", {
+                          transport: newServer.type === "sse" ? "SSE" : "HTTP",
+                        })}
                       </p>
                     </div>
                   </AccordionContent>
@@ -1264,7 +1263,7 @@ export const MCPServerManager = ({
                 disabled={selectedServers.length === 0}
               >
                 <X className="h-3.5 w-3.5" />
-                Disable All
+                {t("disableAll")}
               </Button>
               <Button
                 onClick={() => setView("add")}
@@ -1272,19 +1271,19 @@ export const MCPServerManager = ({
                 className="gap-1.5"
               >
                 <PlusCircle className="h-3.5 w-3.5" />
-                Add Server
+                {t("addServer")}
               </Button>
             </>
           ) : (
             <>
               <Button variant="outline" onClick={handleFormCancel}>
-                Cancel
+                {t("cancel")}
               </Button>
               <Button
                 onClick={editingServerId ? updateServer : addServer}
                 disabled={!newServer.name || !newServer.url}
               >
-                {editingServerId ? "Save Changes" : "Add Server"}
+                {editingServerId ? t("saveChanges") : t("addServer")}
               </Button>
             </>
           )}

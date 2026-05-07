@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCopy } from "@/lib/hooks/use-copy";
@@ -9,6 +10,7 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ text, className }: CopyButtonProps) {
+  const t = useTranslations("common");
   const { copied, copy } = useCopy();
 
   return (
@@ -20,17 +22,17 @@ export function CopyButton({ text, className }: CopyButtonProps) {
         className
       )}
       onClick={() => copy(text)}
-      title="Copy to clipboard"
+      title={t("copyToClipboard")}
     >
       {copied ? (
         <>
           <CheckIcon className="h-4 w-4" />
-          <span className="text-xs">Copied!</span>
+          <span className="text-xs">{t("copied")}</span>
         </>
       ) : (
         <>
           <CopyIcon className="h-4 w-4" />
-          <span className="text-xs">Copy</span>
+          <span className="text-xs">{t("copy")}</span>
         </>
       )}
     </Button>

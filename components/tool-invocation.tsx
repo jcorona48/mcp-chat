@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -30,6 +31,7 @@ export function ToolInvocation({
   isLatestMessage,
   status,
 }: ToolInvocationProps) {
+  const t = useTranslations("common");
   const [isExpanded, setIsExpanded] = useState(true);
   const normalizedState = state ?? "input-streaming";
   const isLegacyCall =
@@ -122,12 +124,12 @@ export function ToolInvocation({
           <span className={cn("font-medium", getStatusClass())}>
             {isRunning
               ? isLatestMessage && status !== "ready"
-                ? "Running"
-                : "Waiting"
+                ? t("running")
+                : t("waiting")
               : isErrored
-                ? "Error"
+                ? t("error")
                 : isCompleted
-                  ? "Completed"
+                  ? t("completed")
                   : normalizedState}
           </span>
         </div>
@@ -149,7 +151,7 @@ export function ToolInvocation({
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70 pt-1.5">
                 <Code className="h-3 w-3" />
-                <span className="font-medium">Arguments</span>
+                <span className="font-medium">{t("arguments")}</span>
               </div>
               <pre
                 className={cn(
@@ -166,7 +168,7 @@ export function ToolInvocation({
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
                 <ArrowRight className="h-3 w-3" />
-                <span className="font-medium">Result</span>
+                <span className="font-medium">{t("result")}</span>
               </div>
               <pre
                 className={cn(
@@ -181,7 +183,7 @@ export function ToolInvocation({
 
           {!args && !result && isLegacyCall && (
             <div className="text-xs text-muted-foreground/70 pt-1">
-              Calling legacy tool invocation...
+              {t("callingLegacyTool")}
             </div>
           )}
         </div>

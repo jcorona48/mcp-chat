@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 import {
   MODELS,
   modelDetails,
@@ -38,21 +39,19 @@ export const ModelPicker = ({
   selectedModel,
   setSelectedModel,
 }: ModelPickerProps) => {
+  const t = useTranslations("common");
   const [hoveredModel, setHoveredModel] = useState<modelID | null>(null);
 
-  // Ensure we always have a valid model ID
   const validModelId = MODELS.includes(selectedModel)
     ? selectedModel
     : defaultModel;
 
-  // If the selected model is invalid, update it to the default
   useEffect(() => {
     if (selectedModel !== validModelId) {
       setSelectedModel(validModelId as modelID);
     }
   }, [selectedModel, validModelId, setSelectedModel]);
 
-  // Function to get the appropriate icon for each provider
   const getProviderIcon = (provider: string) => {
     switch (provider.toLowerCase()) {
       case "anthropic":
@@ -70,7 +69,6 @@ export const ModelPicker = ({
     }
   };
 
-  // Function to get capability icon
   const getCapabilityIcon = (capability: string) => {
     switch (capability.toLowerCase()) {
       case "code":
@@ -97,7 +95,6 @@ export const ModelPicker = ({
     }
   };
 
-  // Get capability badge color
   const getCapabilityColor = (capability: string) => {
     switch (capability.toLowerCase()) {
       case "code":
@@ -123,11 +120,9 @@ export const ModelPicker = ({
     }
   };
 
-  // Get current model details to display
   const displayModelId = hoveredModel || validModelId;
   const currentModelDetails = modelDetails[displayModelId];
 
-  // Handle model change
   const handleModelChange = (modelId: string) => {
     if (MODELS.includes(modelId)) {
       const typedModelId = modelId as modelID;
@@ -144,7 +139,7 @@ export const ModelPicker = ({
       >
         <SelectTrigger className="max-w-[200px] sm:max-w-fit sm:w-56 px-2 sm:px-3 h-8 sm:h-9 rounded-full group border-primary/20 bg-primary/5 hover:bg-primary/10 dark:bg-primary/10 dark:hover:bg-primary/20 transition-all duration-200 ring-offset-background focus:ring-2 focus:ring-primary/30 focus:ring-offset-2">
           <SelectValue
-            placeholder="Select model"
+            placeholder={t("selectModel")}
             className="text-xs font-medium flex items-center gap-1 sm:gap-2 text-primary dark:text-primary-foreground"
           >
             <div className="flex items-center gap-1 sm:gap-2">
@@ -160,7 +155,6 @@ export const ModelPicker = ({
           className="bg-background/95 dark:bg-muted/95 backdrop-blur-sm border-border/80 rounded-lg overflow-hidden p-0 w-[280px] sm:w-[350px] md:w-[515px]"
         >
           <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] md:grid-cols-[200px_1fr] items-start">
-            {/* Model selector column */}
             <div className="sm:border-r border-border/40 bg-muted/20 p-0 pr-1">
               <SelectGroup className="space-y-1">
                 {MODELS.map((id) => {
@@ -197,7 +191,6 @@ export const ModelPicker = ({
               </SelectGroup>
             </div>
 
-            {/* Model details column - hidden on smallest screens, visible on sm+ */}
             <div className="sm:block hidden p-2 sm:p-3 md:p-4 flex-col">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -207,13 +200,12 @@ export const ModelPicker = ({
                   </h3>
                 </div>
                 <div className="text-xs text-muted-foreground mb-1">
-                  Provider:{" "}
+                  {t("provider")}:{" "}
                   <span className="font-medium">
                     {currentModelDetails.provider}
                   </span>
                 </div>
 
-                {/* Capability badges */}
                 <div className="flex flex-wrap gap-1 mt-2 mb-3">
                   {currentModelDetails.capabilities.map((capability) => (
                     <span
@@ -236,7 +228,7 @@ export const ModelPicker = ({
 
               <div className="bg-muted/40 rounded-md p-2 hidden md:block">
                 <div className="text-[10px] text-muted-foreground flex justify-between items-center">
-                  <span>API Version:</span>
+                  <span>{t("apiVersion")}:</span>
                   <code className="bg-background/80 px-2 py-0.5 rounded text-[10px] font-mono">
                     {currentModelDetails.apiVersion}
                   </code>
@@ -244,7 +236,6 @@ export const ModelPicker = ({
               </div>
             </div>
 
-            {/* Condensed model details for mobile only */}
             <div className="p-3 sm:hidden border-t border-border/30">
               <div className="flex flex-wrap gap-1 mb-2">
                 {currentModelDetails.capabilities
@@ -263,7 +254,7 @@ export const ModelPicker = ({
                   ))}
                 {currentModelDetails.capabilities.length > 4 && (
                   <span className="text-[10px] text-muted-foreground">
-                    +{currentModelDetails.capabilities.length - 4} more
+                    +{currentModelDetails.capabilities.length - 4} {t("more")}
                   </span>
                 )}
               </div>

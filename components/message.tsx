@@ -2,6 +2,7 @@
 
 import type { UIMessage as TMessage } from "ai";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,7 @@ export function ReasoningMessagePart({
   part,
   isReasoning,
 }: ReasoningMessagePartProps) {
+  const t = useTranslations("common");
   const [isExpanded, setIsExpanded] = useState(false);
   const isStreamingReasoning = part.state === "streaming" || isReasoning;
 
@@ -54,7 +56,7 @@ export function ReasoningMessagePart({
           <div className="animate-spin h-3.5 w-3.5">
             <SpinnerIcon />
           </div>
-          <div className="text-xs font-medium tracking-tight">Thinking...</div>
+          <div className="text-xs font-medium tracking-tight">{t("thinking")}</div>
         </div>
       ) : (
         <button
@@ -78,9 +80,9 @@ export function ReasoningMessagePart({
               <LightbulbIcon className="h-3.5 w-3.5" />
             </div>
             <div className="text-sm font-medium text-foreground flex items-center gap-1.5">
-              Reasoning
+              {t("reasoning")}
               <span className="text-xs text-muted-foreground font-normal">
-                (click to {isExpanded ? "hide" : "view"})
+                (click to {isExpanded ? t("clickToHide") : t("clickToView")})
               </span>
             </div>
           </div>
@@ -111,7 +113,7 @@ export function ReasoningMessagePart({
           )}
         >
           <div className="text-xs text-muted-foreground/70 pl-1 font-medium">
-            The assistant&apos;s thought process:
+            {t("assistantThoughtProcess")}
           </div>
           {part.details?.length ? (
             part.details.map((detail, detailIndex) =>

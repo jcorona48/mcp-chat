@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -66,7 +67,8 @@ interface ApiKeyManagerProps {
 }
 
 export function ApiKeyManager({ open, onOpenChange }: ApiKeyManagerProps) {
-  // State to store API keys
+  const t = useTranslations("apiKey");
+  const tCommon = useTranslations("common");
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
   // Load API keys from localStorage on initial mount
@@ -104,11 +106,11 @@ export function ApiKeyManager({ open, onOpenChange }: ApiKeyManagerProps) {
         }
       });
 
-      toast.success("API keys saved successfully");
+      toast.success(t("keysSaved"));
       onOpenChange(false);
     } catch (error) {
       console.error("Error saving API keys:", error);
-      toast.error("Failed to save API keys");
+      toast.error(t("failedToSaveKeys"));
     }
   };
 
@@ -120,10 +122,10 @@ export function ApiKeyManager({ open, onOpenChange }: ApiKeyManagerProps) {
       });
 
       setApiKeys({});
-      toast.success("All API keys cleared");
+      toast.success(t("allKeysCleared"));
     } catch (error) {
       console.error("Error clearing API keys:", error);
-      toast.error("Failed to clear API keys");
+      toast.error(t("failedToClearKeys"));
     }
   };
 
@@ -131,17 +133,16 @@ export function ApiKeyManager({ open, onOpenChange }: ApiKeyManagerProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>API Key Settings</DialogTitle>
+          <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
-            Enter your own API keys for different AI providers. Keys are stored
-            securely in your browser&apos;s local storage.
+            {t("description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           {API_KEYS_CONFIG.map((config) => (
             <div key={config.key} className="grid gap-2">
-              <Label htmlFor={config.key}>{config.label}</Label>
+              <Label htmlFor={config.key}>{t(`${config.key}Key`)}</Label>
               <Input
                 id={config.key}
                 type="password"
@@ -155,13 +156,13 @@ export function ApiKeyManager({ open, onOpenChange }: ApiKeyManagerProps) {
 
         <DialogFooter className="flex justify-between sm:justify-between">
           <Button variant="destructive" onClick={handleClearApiKeys}>
-            Clear All Keys
+            {t("clearAllKeys")}
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {tCommon("cancel")}
             </Button>
-            <Button onClick={handleSaveApiKeys}>Save Keys</Button>
+            <Button onClick={handleSaveApiKeys}>{t("saveKeys")}</Button>
           </div>
         </DialogFooter>
       </DialogContent>

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { modelID } from "@/ai/providers";
 import { Textarea as ShadcnTextarea } from "@/components/ui/textarea";
 import { ArrowUp, Loader2, X } from "lucide-react";
@@ -22,6 +23,7 @@ export const Textarea = ({
   selectedModel,
   setSelectedModel,
 }: InputProps) => {
+  const t = useTranslations("common");
   const isStreaming = status === "streaming" || status === "submitted";
 
   return (
@@ -30,7 +32,7 @@ export const Textarea = ({
         className="resize-none bg-background/50 dark:bg-muted/50 backdrop-blur-sm w-full rounded-2xl pr-12 pt-4 pb-16 border-input focus-visible:ring-ring placeholder:text-muted-foreground"
         value={input}
         autoFocus
-        placeholder="Send a message..."
+        placeholder={t("sendAMessage")}
         onChange={handleInputChange}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !isLoading && input?.trim()) {

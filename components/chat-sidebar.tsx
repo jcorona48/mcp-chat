@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter, usePathname } from "next/navigation";
 import {
   MessageSquare,
@@ -37,6 +38,7 @@ import Image from "next/image";
 import { MCPServerManager } from "./mcp-server-manager";
 import { ApiKeyManager } from "./api-key-manager";
 import { ThemeToggle } from "./theme-toggle";
+import { LanguageSwitcher } from "./language-switcher";
 import { getUserId, updateUserId } from "@/lib/user-id";
 import { useChats } from "@/lib/hooks/use-chats";
 import { cn } from "@/lib/utils";
@@ -66,6 +68,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatePresence, motion } from "motion/react";
 
 export function ChatSidebar() {
+  const tChat = useTranslations("chat");
+  const tUser = useTranslations("userMenu");
+  const tUserId = useTranslations("userId");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const pathname = usePathname();
   const [userId, setUserId] = useState<string>("");
@@ -117,16 +123,15 @@ export function ChatSidebar() {
   // Handle user ID update
   const handleUpdateUserId = () => {
     if (!newUserId.trim()) {
-      toast.error("User ID cannot be empty");
+      toast.error(tUserId("cannotBeEmpty"));
       return;
     }
 
     updateUserId(newUserId.trim());
     setUserId(newUserId.trim());
     setEditUserIdOpen(false);
-    toast.success("User ID updated successfully");
+    toast.success(tUserId("updateSuccess"));
 
-    // Refresh the page to reload chats with new user ID
     window.location.reload();
   };
 
@@ -187,7 +192,7 @@ export function ChatSidebar() {
             </div>
             {!isCollapsed && (
               <div className="font-semibold text-lg text-foreground/90">
-                MceChat AI
+                {tChat("title")}
               </div>
             )}
           </div>
@@ -202,7 +207,7 @@ export function ChatSidebar() {
               isCollapsed ? "sr-only" : ""
             )}
           >
-            Chats
+            {tChat("chats")}
           </SidebarGroupLabel>
           <SidebarGroupContent
             className={cn(
@@ -227,7 +232,7 @@ export function ChatSidebar() {
                     <div className="flex items-center gap-3 w-full px-3 py-2 rounded-md border border-dashed border-border/50 bg-background/50">
                       <MessageSquare className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground font-normal">
-                        No conversations yet
+                        {tChat("noConversations")}
                       </span>
                     </div>
                   )}
@@ -284,13 +289,13 @@ export function ChatSidebar() {
                               )}
                             </div>
                             {!isCollapsed && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-foreground flex-shrink-0"
-                                onClick={(e) => handleDeleteChat(chat.id, e)}
-                                title="Delete chat"
-                              >
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-foreground flex-shrink-0"
+                                  onClick={(e) => handleDeleteChat(chat.id, e)}
+                                  title={tChat("deleteChat")}
+                                >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -318,7 +323,7 @@ export function ChatSidebar() {
               isCollapsed ? "sr-only" : ""
             )}
           >
-            MCP Servers
+            {tUser("mcpServers")}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -329,7 +334,7 @@ export function ChatSidebar() {
                     "w-full flex items-center gap-2 transition-all",
                     "hover:bg-secondary/50 active:bg-secondary/70"
                   )}
-                  tooltip={isCollapsed ? "MCP Servers" : undefined}
+                  tooltip={isCollapsed ? tUser("mcpServers") : undefined}
                 >
                   <ServerIcon
                     className={cn(
@@ -341,7 +346,7 @@ export function ChatSidebar() {
                   />
                   {!isCollapsed && (
                     <span className="flex-grow text-sm text-foreground/80">
-                      MCP Servers
+                      {tUser("mcpServers")}
                     </span>
                   )}
                   {activeServersCount > 0 && !isCollapsed ? (
@@ -375,10 +380,10 @@ export function ChatSidebar() {
                 isCollapsed ? "w-8 h-8 p-0" : ""
               )}
               onClick={handleNewChat}
-              title={isCollapsed ? "New Chat" : undefined}
+              title={isCollapsed ? tChat("newChat") : undefined}
             >
               <PlusCircle className={`${isCollapsed ? "" : "mr-2"} h-4 w-4`} />
-              {!isCollapsed && <span>New Chat</span>}
+              {!isCollapsed && <span>{tChat("newChat")}</span>}
             </Button>
           </motion.div>
 
@@ -408,7 +413,7 @@ export function ChatSidebar() {
                     </Avatar>
                     <div className="grid text-left text-sm leading-tight">
                       <span className="truncate font-medium text-foreground/90">
-                        User ID
+                        {tUser("userId")}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {userId.substring(0, 16)}...
@@ -434,7 +439,7 @@ export function ChatSidebar() {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold text-foreground/90">
-                      User ID
+                      {tUser("userId")}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
                       {userId}
@@ -448,11 +453,11 @@ export function ChatSidebar() {
                   onSelect={(e) => {
                     e.preventDefault();
                     navigator.clipboard.writeText(userId);
-                    toast.success("User ID copied to clipboard");
+                    toast.success(tUserId("copySuccess"));
                   }}
                 >
                   <Copy className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  Copy User ID
+                  {tUser("copyUserId")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(e) => {
@@ -461,7 +466,7 @@ export function ChatSidebar() {
                   }}
                 >
                   <Pencil className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  Edit User ID
+                  {tUser("editUserId")}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
@@ -473,7 +478,7 @@ export function ChatSidebar() {
                   }}
                 >
                   <Settings className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  MCP Settings
+                  {tUser("mcpSettings")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(e) => {
@@ -482,17 +487,13 @@ export function ChatSidebar() {
                   }}
                 >
                   <Key className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  API Keys
+                  {tUser("apiKeys")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center">
-                      <Sparkles className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                      Theme
-                    </div>
-                    <ThemeToggle className="h-6 w-6" />
-                  </div>
+                    <ThemeToggle className="h-6 w-full" />
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                  <LanguageSwitcher />
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -524,28 +525,27 @@ export function ChatSidebar() {
       >
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Edit User ID</DialogTitle>
+            <DialogTitle>{tUserId("editTitle")}</DialogTitle>
             <DialogDescription>
-              Update your user ID for chat synchronization. This will affect
-              which chats are visible to you.
+              {tUserId("editDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="userId">User ID</Label>
+              <Label htmlFor="userId">{tUserId("label")}</Label>
               <Input
                 id="userId"
                 value={newUserId}
                 onChange={(e) => setNewUserId(e.target.value)}
-                placeholder="Enter your user ID"
+                placeholder={tUserId("placeholder")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditUserIdOpen(false)}>
-              Cancel
+              {tCommon("cancel")}
             </Button>
-            <Button onClick={handleUpdateUserId}>Save Changes</Button>
+            <Button onClick={handleUpdateUserId}>{tCommon("saveChanges")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

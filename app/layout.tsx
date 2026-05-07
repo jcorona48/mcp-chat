@@ -7,7 +7,7 @@ import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css";
-import { BotIdClient } from "botid/client";
+import { NextIntlProvider } from "@/providers/i18n-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -36,6 +36,7 @@ export default function RootLayout({
       <head>
       </head>
       <body className={`${inter.className}`}>
+        <NextIntlProvider>
         <Providers>
           <div className="flex h-dvh w-full">
             <ChatSidebar />
@@ -53,6 +54,7 @@ export default function RootLayout({
         </Providers>
         <Analytics />
         <SpeedInsights />
+        </NextIntlProvider>
       </body>
     </html>
   );
