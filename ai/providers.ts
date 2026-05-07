@@ -100,7 +100,7 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
   },
   "nvidia/nemotron-3-super-120b-a12b:free": {
     provider: "OpenRouter",
-    name: "NVIDIA NeMoTron 3 Super 120B A12B",
+    name: "NVIDIA NeMoTron 3",
     description: "NVIDIA's latest NeMoTron 3 Super model with strong reasoning and coding capabilities.",
     apiVersion: "nvidia/nemotron-3-super-120b-a12b:free",
     capabilities: ["Reasoning", "Efficient", "Agentic"]
@@ -125,4 +125,4 @@ export type modelID = keyof typeof languageModels;
 
 export const MODELS = Object.keys(languageModels);
 
-export const defaultModel: modelID = "gpt-oss-120b";
+export const defaultModel: modelID = "tencent/hy3-preview:free";
