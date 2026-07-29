@@ -179,7 +179,7 @@ export async function POST(req: Request) {
         userId: string;
         mcpServers?: MCPServerConfig[];
     } = await req.json();
-    const userMessage = messages.find((m) => m.role === "user");
+    const userMessage = messages.findLast((m) => m.role === "user");
 
     try {
         trace("request_parsed", {
@@ -428,7 +428,7 @@ export async function POST(req: Request) {
 
                         const detailed = getDetailedErrorMessage(error);
                         const shouldRecommendSwitch =
-                            selectedModel === "llama4" &&
+                            selectedModel === "inclusionai/ling-2.6-flash" &&
                             hasTools &&
                             !modelAutoSwitched &&
                             sawToolCallingFailure;

@@ -42,6 +42,7 @@
         "deleteChat": "Eliminar chat"
     },
     "mcp": {
+        "cancel": "Cancelar",
         "title": "Configuración de servidor MCP",
         "description": "Conéctate a servidores Model Context Protocol para acceder a herramientas de IA adicionales.",
         "activeServers": "{count} servidor{plural, select, one {} other {s}} activo{plural, select, one {} other {s}}",

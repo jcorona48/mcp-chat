@@ -17,7 +17,7 @@ interface ModelDecision {
   autoSwitched: boolean;
 }
 
-const TOOL_UNSTABLE_MODEL: modelID = "llama4";
+const TOOL_UNSTABLE_MODEL: modelID = "nvidia/nemotron-3-super-120b-a12b:free";
 const TOOL_STABLE_FALLBACK_MODEL: modelID = "qwen3-32b";
 const FAILURE_THRESHOLD_FOR_SWITCH = 2;
 const FAILURE_WINDOW_MS = 1000 * 60 * 30;

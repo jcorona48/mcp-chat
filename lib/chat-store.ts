@@ -315,7 +315,7 @@ export async function getChatById(id: string, userId: string, withMessages: bool
   const chatMessages = withMessages
     ? await db.query.messages.findMany({
         where: eq(messages.chatId, id),
-        orderBy: [messages.createdAt]
+        orderBy: [messages.createdAt, messages.id]
       })
     : [];
 

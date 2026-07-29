@@ -47,10 +47,32 @@ const languageModels = {
       middleware
     }
   ),
-  "kimi-k2": groqClient('moonshotai/kimi-k2-instruct'),
-  "llama4": groqClient('meta-llama/llama-4-scout-17b-16e-instruct'),
-  "gpt-oss-120b": groqClient('openai/gpt-oss-120b'),
-  "tencent/hy3-preview:free": openRouterClient('tencent/hy3-preview:free', {
+  "tencent/hy3": openRouterClient('tencent/hy3', {
+    usage: {
+      include: true
+    },
+  }),
+  "tencent/hy3-preview": openRouterClient('tencent/hy3-preview', {
+    usage: {
+      include: true
+    },
+  }),
+  "inclusionai/ling-2.6-1t": openRouterClient('inclusionai/ling-2.6-1t', {
+    usage: {
+      include: true
+    },
+  }),
+  "inclusionai/ling-2.6-flash": openRouterClient('inclusionai/ling-2.6-flash', {
+    usage: {
+      include: true
+    },
+  }),
+  "inclusionai/ling-3.0-flash:free": openRouterClient('inclusionai/ling-3.0-flash:free', {
+    usage: {
+      include: true
+    },
+  }),
+  "google/gemma-4-26b-a4b-it:free": openRouterClient('google/gemma-4-26b-a4b-it:free', {
     usage: {
       include: true
     },
@@ -63,12 +85,40 @@ const languageModels = {
 };
 
 export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
-  "kimi-k2": {
-    provider: "Groq",
-    name: "Kimi K2",
-    description: "Latest version of Moonshot AI's Kimi K2 with good balance of capabilities.",
-    apiVersion: "kimi-k2-instruct",
-    capabilities: ["Balanced", "Efficient", "Agentic"]
+  "tencent/hy3": {
+    provider: "OpenRouter",
+    name: "Tencent HY3",
+    description: "Tencent's latest HY3 model with strong reasoning and coding capabilities.",
+    apiVersion: "tencent/hy3",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  "inclusionai/ling-2.6-1t": {
+    provider: "OpenRouter",
+    name: "Inclusion AI Ling 2.6 1T",
+    description: "Inclusion AI's Ling 2.6 1T model with strong reasoning and coding capabilities.",
+    apiVersion: "inclusionai/ling-2.6-1t",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  "tencent/hy3-preview": {
+    provider: "OpenRouter",
+    name: "Tencent HY3 Preview",
+    description: "Preview version of Tencent's HY3 model with strong reasoning and coding capabilities.",
+    apiVersion: "tencent/hy3-preview",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  "inclusionai/ling-2.6-flash": {
+    provider: "OpenRouter",
+    name: "Inclusion AI Ling 2.6 Flash",
+    description: "Inclusion AI's Ling 2.6 Flash model with strong reasoning and coding capabilities.",
+    apiVersion: "inclusionai/ling-2.6-flash",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  },
+  "google/gemma-4-26b-a4b-it:free": {
+    provider: "OpenRouter",
+    name: "Google Gemma 4",
+    description: "Google's latest Gemma 4 model with strong reasoning and coding capabilities.",
+    apiVersion: "google/gemma-4-26b-a4b-it:free",
+    capabilities: ["Reasoning", "Efficient", "Agentic"]
   },
   "qwen3-32b": {
     provider: "Groq",
@@ -77,25 +127,11 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
     apiVersion: "qwen3-32b",
     capabilities: ["Reasoning", "Efficient", "Agentic"]
   },
-  "llama4": {
-    provider: "Groq",
-    name: "Llama 4",
-    description: "Latest version of Meta's Llama 4 with good balance of capabilities.",
-    apiVersion: "llama-4-scout-17b-16e-instruct",
-    capabilities: ["Balanced", "Efficient", "Agentic"]
-  },
-  "gpt-oss-120b": {
-    provider: "Groq",
-    name: "GPT-OSS 120B",
-    description: "Open-source version of GPT with strong reasoning and coding capabilities.",
-    apiVersion: "gpt-oss-120b",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
-  "tencent/hy3-preview:free": {
+  "inclusionai/ling-3.0-flash:free": {
     provider: "OpenRouter",
-    name: "Tencent HY3 Preview",
-    description: "Preview version of Tencent's HY3 with good balance of capabilities.",
-    apiVersion: "tencent/hy3-preview:free",
+    name: "Ling 3.0 Flash",
+    description: "Preview version of Inclusion AI's Ling 3.0 Flash with good balance of capabilities.",
+    apiVersion: "inclusionai/ling-3.0-flash:free",
     capabilities: ["Balanced", "Efficient", "Agentic"]
   },
   "nvidia/nemotron-3-super-120b-a12b:free": {
@@ -125,4 +161,4 @@ export type modelID = keyof typeof languageModels;
 
 export const MODELS = Object.keys(languageModels);
 
-export const defaultModel: modelID = "tencent/hy3-preview:free";
+export const defaultModel: modelID = "inclusionai/ling-3.0-flash:free";

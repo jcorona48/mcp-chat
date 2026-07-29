@@ -109,7 +109,7 @@ const StatusIndicator = ({
   const isClickable = !!onClick;
   const hasHoverInfo = !!hoverInfo;
 
-  const className = `flex-shrink-0 flex items-center gap-1 ${
+  const className = `hrink-0 flex items-center gap-1 ${
     isClickable ? "cursor-pointer" : ""
   }`;
 
