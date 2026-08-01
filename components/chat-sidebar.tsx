@@ -118,7 +118,9 @@ export function ChatSidebar() {
   };
 
   // Get active MCP servers status
-  const activeServersCount = selectedMcpServers.length;
+  const activeServersCount = selectedMcpServers.filter((id) =>
+    mcpServers.some((s) => s.id === id)
+  ).length;
 
   // Handle user ID update
   const handleUpdateUserId = () => {

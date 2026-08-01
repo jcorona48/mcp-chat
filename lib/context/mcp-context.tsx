@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 
 export interface KeyValuePair {
@@ -33,7 +33,6 @@ export interface MCPServer {
   type: "sse" | "http";
   command?: string;
   args?: string[];
-  env?: KeyValuePair[];
   headers?: KeyValuePair[];
   description?: string;
   status?: ServerStatus;
@@ -43,6 +42,7 @@ export interface MCPServer {
 
 export interface MCPServerApi {
   type: "sse" | "http";
+  name?: string;
   url: string;
   headers?: KeyValuePair[];
 }
@@ -53,7 +53,7 @@ interface MCPContextType {
   selectedMcpServers: string[];
   setSelectedMcpServers: (serverIds: string[]) => void;
   mcpServersForApi: MCPServerApi[];
-  startServer: (serverId: string) => Promise<boolean>;
+  startServer: (serverId: string, serverOverride?: MCPServer) => Promise<boolean>;
   stopServer: (serverId: string) => Promise<boolean>;
   updateServerStatus: (
     serverId: string,
@@ -149,14 +149,18 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
       )
       .map((server) => ({
         type: server.type,
+        name: server.name,
         url: server.url,
         headers: server.headers,
       }));
   };
 
   // Start a server using MCP SDK
-  const startServer = async (serverId: string): Promise<boolean> => {
-    const server = getServerById(serverId);
+  const startServer = async (
+    serverId: string,
+    serverOverride?: MCPServer
+  ): Promise<boolean> => {
+    const server = serverOverride ?? getServerById(serverId);
     if (!server) {
       console.error(`[startServer] Server not found for ID: ${serverId}`);
       return false;
@@ -230,6 +234,15 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
   };
+
+  // Prune orphaned selected ids that no longer exist in the server list
+  useEffect(() => {
+    const serverIds = new Set(mcpServers.map((s) => s.id));
+    const pruned = selectedMcpServers.filter((id) => serverIds.has(id));
+    if (pruned.length !== selectedMcpServers.length) {
+      setSelectedMcpServers(pruned);
+    }
+  }, [mcpServers, selectedMcpServers, setSelectedMcpServers]);
 
   // Calculate mcpServersForApi based on current state
   const mcpServersForApi = getActiveServersForApi();

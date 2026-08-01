@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ChevronDownIcon,
@@ -13,6 +13,8 @@ import {
   Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ToolConfigApply } from "./tool-config-apply";
+import { ADD_MCP_SERVER_TOOL } from "@/lib/chat/ai-config-tools";
 
 interface ToolInvocationProps {
   toolName: string;
@@ -32,7 +34,9 @@ export function ToolInvocation({
   status,
 }: ToolInvocationProps) {
   const t = useTranslations("common");
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(
+    toolName === ADD_MCP_SERVER_TOOL
+  );
   const normalizedState = state ?? "input-streaming";
   const isLegacyCall =
     normalizedState === "partial-call" ||
@@ -47,12 +51,6 @@ export function ToolInvocation({
     normalizedState === "output-available" ||
     normalizedState === "result";
   const isErrored = normalizedState === "output-error";
-
-  useEffect(() => {
-    if (isLatestMessage && status !== "ready" && (isRunning || isCompleted)) {
-      setIsExpanded(true);
-    }
-  }, [isLatestMessage, isRunning, status]);
 
   const getStatusIcon = () => {
     if (isRunning) {
@@ -147,44 +145,50 @@ export function ToolInvocation({
 
       {isExpanded && (
         <div className="space-y-2 px-3 pb-3">
-          {!!args && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70 pt-1.5">
-                <Code className="h-3 w-3" />
-                <span className="font-medium">{t("arguments")}</span>
-              </div>
-              <pre
-                className={cn(
-                  "text-xs font-mono p-2.5 rounded-md overflow-x-auto",
-                  "border border-border/40 bg-muted/10"
-                )}
-              >
-                {formatContent(args)}
-              </pre>
-            </div>
-          )}
+          {toolName === ADD_MCP_SERVER_TOOL ? (
+            <ToolConfigApply result={result} />
+          ) : (
+            <>
+              {!!args && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70 pt-1.5">
+                    <Code className="h-3 w-3" />
+                    <span className="font-medium">{t("arguments")}</span>
+                  </div>
+                  <pre
+                    className={cn(
+                      "text-xs font-mono p-2.5 rounded-md overflow-x-auto",
+                      "border border-border/40 bg-muted/10"
+                    )}
+                  >
+                    {formatContent(args)}
+                  </pre>
+                </div>
+              )}
 
-          {!!result && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                <ArrowRight className="h-3 w-3" />
-                <span className="font-medium">{t("result")}</span>
-              </div>
-              <pre
-                className={cn(
-                  "text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-75 overflow-y-auto",
-                  "border border-border/40 bg-muted/10"
-                )}
-              >
-                {formatContent(result)}
-              </pre>
-            </div>
-          )}
+              {!!result && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                    <ArrowRight className="h-3 w-3" />
+                    <span className="font-medium">{t("result")}</span>
+                  </div>
+                  <pre
+                    className={cn(
+                      "text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-75 overflow-y-auto",
+                      "border border-border/40 bg-muted/10"
+                    )}
+                  >
+                    {formatContent(result)}
+                  </pre>
+                </div>
+              )}
 
-          {!args && !result && isLegacyCall && (
-            <div className="text-xs text-muted-foreground/70 pt-1">
-              {t("callingLegacyTool")}
-            </div>
+              {!args && !result && isLegacyCall && (
+                <div className="text-xs text-muted-foreground/70 pt-1">
+                  {t("callingLegacyTool")}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

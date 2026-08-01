@@ -3,14 +3,27 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
+interface KeyValuePair {
+  key: string;
+  value: string;
+}
+
+function toHeadersObject(headers?: KeyValuePair[]): Record<string, string> {
+  return (headers ?? []).reduce((acc, header) => {
+    if (header.key) acc[header.key] = header.value || '';
+    return acc;
+  }, {} as Record<string, string>);
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { url } = await req.json();
+    const { url, headers } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
+    const headerObject = toHeadersObject(headers);
     let client: Client | undefined = undefined;
     const baseUrl = new URL(url);
 
@@ -21,7 +34,9 @@ export async function POST(req: NextRequest) {
         version: '1.0.0'
       });
 
-      const transport = new StreamableHTTPClientTransport(baseUrl);
+      const transport = new StreamableHTTPClientTransport(baseUrl, {
+        requestInit: { headers: headerObject },
+      });
       await client.connect(transport);
       console.log("Connected using Streamable HTTP transport");
     } catch (error) {
@@ -31,7 +46,9 @@ export async function POST(req: NextRequest) {
         name: 'sse-client',
         version: '1.0.0'
       });
-      const sseTransport = new SSEClientTransport(baseUrl);
+      const sseTransport = new SSEClientTransport(baseUrl, {
+        requestInit: { headers: headerObject },
+      });
       await client.connect(sseTransport);
       console.log("Connected using SSE transport");
     }

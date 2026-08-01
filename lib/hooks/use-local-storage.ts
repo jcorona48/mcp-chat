@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 type SetValue<T> = T | ((val: T) => T);
 
@@ -16,6 +16,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   // Check if we're in the browser environment
   const isBrowser = typeof window !== 'undefined';
 
+  // Mirror the latest value so functional updates in the same tick compose
+  const valueRef = useRef<T>(initialValue);
+
   // Initialize state from localStorage or use initialValue
   useEffect(() => {
     if (!isBrowser) return;
@@ -23,7 +26,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       const item = window.localStorage.getItem(key);
       if (item) {
-        setStoredValue(parseJSON(item));
+        const parsed = parseJSON<T>(item);
+        valueRef.current = parsed;
+        setStoredValue(parsed);
       }
     } catch (error) {
       console.error(`Error reading localStorage key "${key}":`, error);
@@ -38,7 +43,10 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       // Allow value to be a function so we have same API as useState
       const valueToStore =
-        value instanceof Function ? value(storedValue) : value;
+        value instanceof Function ? value(valueRef.current) : value;
+
+      // Track the latest value so consecutive updates in the same tick compose
+      valueRef.current = valueToStore;
 
       // Save state
       setStoredValue(valueToStore);
@@ -52,7 +60,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     } catch (error) {
       console.error(`Error setting localStorage key "${key}":`, error);
     }
-  }, [key, storedValue, isBrowser]);
+  }, [key, isBrowser]);
 
   return [storedValue, setValue] as const;
 }

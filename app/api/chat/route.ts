@@ -14,6 +14,8 @@ import { decideExecutionModel } from "@/lib/chat/model-execution-policy";
 import { db } from "@/lib/db";
 import { chats, MessagePart } from "@/lib/db/schema";
 import { initializeMCPClients, type MCPServerConfig } from "@/lib/mcp-client";
+// AI config tools: proposes MCP server configs for the user to apply in the UI (remove to disable).
+import { createAiConfigTools } from "@/lib/chat/ai-config-tools";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -300,7 +302,10 @@ export async function POST(req: Request) {
 
         const executionModel = modelDecision.executionModel;
         const modelAutoSwitched = modelDecision.autoSwitched;
-        const instrumentedTools = withToolExecutionMetrics(tools, trace);
+        const instrumentedTools = withToolExecutionMetrics(
+            { ...tools, ...createAiConfigTools(mcpServers) },
+            trace,
+        );
 
         trace("mcp_init_finished", {
             mcpInitMs: Date.now() - mcpInitStartedAt,
@@ -316,6 +321,13 @@ export async function POST(req: Request) {
         trace("stream_setup_started", { maxSteps: 20 });
 
         const modelMessages = await convertToModelMessages(messages);
+
+        const activeServersContext =
+            mcpServers.length > 0
+                ? `\n\nCurrently active MCP servers:\n${mcpServers
+                      .map((s) => `- ${s.name ?? s.url} (${s.type}): ${s.url}`)
+                      .join("\n")}`
+                : "";
 
         const stream = createUIMessageStream({
             originalMessages: messages,
@@ -334,6 +346,8 @@ export async function POST(req: Request) {
     So choose the tool that is most relevant to the user's question.
 
     If tools are not available, say you don't know or if the user wants a tool they can add one from the server icon in bottom left corner in the sidebar.
+
+    If the user asks to add, connect, set up, or UPDATE an MCP server, use the addMcpServer tool to propose the configuration. The proposal is a PROPOSAL ONLY: it is NOT applied and the server is NOT connected until the user clicks Apply in the chat. After proposing, summarize the config and STOP: do not assume the server is active and do not try to use its tools in the current turn, they are not available yet. If a server with the same name or URL already exists, the tool result marks it as an update so the user can apply the changes in one click, but you must still wait for the user to apply it.${activeServersContext}
 
     You can use multiple tools in a single response.
     Always respond after using the tools for better user experience.

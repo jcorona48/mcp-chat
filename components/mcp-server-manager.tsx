@@ -54,10 +54,9 @@ import {
 const INITIAL_NEW_SERVER: Omit<MCPServer, "id"> = {
   name: "",
   url: "",
-  type: "sse",
+  type: "http",
   command: "",
   args: [],
-  env: [],
   headers: [],
 };
 
@@ -172,6 +171,8 @@ const StatusIndicator = ({
 // Add a component to display tools
 const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
   const t = useTranslations("mcp");
+  const [showAllTools, setShowAllTools] = useState(false);
+
   if (!tools || tools.length === 0) {
     return (
       <div className="text-xs text-muted-foreground italic">
@@ -180,13 +181,16 @@ const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
     );
   }
 
+  const hasMore = tools.length > 3;
+  const visibleTools = showAllTools ? tools : tools.slice(0, 3);
+
   return (
     <div className="space-y-1">
       <div className="text-xs font-medium text-muted-foreground mb-1">
-        {t("noToolsAvailable").split(" ")[0]} ({tools.length}):
+        {t("toolsCount")} ({tools.length})
       </div>
       <div className="flex flex-wrap gap-1">
-        {tools.slice(0, 3).map((tool, index) => (
+        {visibleTools.map((tool, index) => (
           <TooltipProvider key={index}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -197,12 +201,13 @@ const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
               <TooltipContent
                 side="top"
                 align="start"
-                className="max-w-[250px]"
+                className="max-w-62.5 bg-primary/90 backdrop-blur"
+                onWheel={(e) => e.stopPropagation()}
               >
                 <div className="space-y-1">
-                  <div className="font-medium">{tool.name}</div>
+                  <div className="font-bold wrap-break-word text-secondary-foreground">{tool.name}</div>
                   {tool.description && (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-secondary-foreground max-h-32 overflow-y-auto pr-1 wrap-break-word">
                       {tool.description}
                     </div>
                   )}
@@ -211,11 +216,24 @@ const ToolsList = ({ tools }: { tools?: MCPTool[] }) => {
             </Tooltip>
           </TooltipProvider>
         ))}
-        {tools.length > 3 && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
-            +{tools.length - 3} {t("more")}
-          </span>
-        )}
+        {hasMore &&
+          (showAllTools ? (
+            <button
+              type="button"
+              onClick={() => setShowAllTools(false)}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-secondary text-secondary-foreground hover:bg-muted cursor-pointer"
+            >
+              {t("showLess")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAllTools(true)}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground hover:bg-secondary cursor-pointer"
+            >
+              +{tools.length - 3} {t("more")}
+            </button>
+          ))}
       </div>
     </div>
   );
@@ -233,39 +251,32 @@ export const MCPServerManager = ({
   const [newServer, setNewServer] =
     useState<Omit<MCPServer, "id">>(INITIAL_NEW_SERVER);
   const [view, setView] = useState<"list" | "add">("list");
-  const [newEnvVar, setNewEnvVar] = useState<KeyValuePair>({
-    key: "",
-    value: "",
-  });
   const [newHeader, setNewHeader] = useState<KeyValuePair>({
     key: "",
     value: "",
   });
   const [editingServerId, setEditingServerId] = useState<string | null>(null);
-  const [showSensitiveEnvValues, setShowSensitiveEnvValues] = useState<
-    Record<number, boolean>
-  >({});
   const [showSensitiveHeaderValues, setShowSensitiveHeaderValues] = useState<
     Record<number, boolean>
   >({});
-  const [editingEnvIndex, setEditingEnvIndex] = useState<number | null>(null);
   const [editingHeaderIndex, setEditingHeaderIndex] = useState<number | null>(
     null
   );
-  const [editedEnvValue, setEditedEnvValue] = useState<string>("");
   const [editedHeaderValue, setEditedHeaderValue] = useState<string>("");
 
   // Add access to the MCP context for server control
   const { startServer, stopServer, updateServerStatus } = useMCP();
 
+  // Only count selections that still reference an existing server
+  const activeServersCount = selectedServers.filter((id) =>
+    servers.some((s) => s.id === id)
+  ).length;
+
   const resetAndClose = () => {
     setView("list");
     setNewServer(INITIAL_NEW_SERVER);
-    setNewEnvVar({ key: "", value: "" });
     setNewHeader({ key: "", value: "" });
-    setShowSensitiveEnvValues({});
     setShowSensitiveHeaderValues({});
-    setEditingEnvIndex(null);
     setEditingHeaderIndex(null);
     onOpenChange(false);
   };
@@ -288,9 +299,7 @@ export const MCPServerManager = ({
     toast.success(t("addedServer", { name: newServer.name }));
     setView("list");
     setNewServer(INITIAL_NEW_SERVER);
-    setNewEnvVar({ key: "", value: "" });
     setNewHeader({ key: "", value: "" });
-    setShowSensitiveEnvValues({});
     setShowSensitiveHeaderValues({});
   };
 
@@ -362,50 +371,6 @@ export const MCPServerManager = ({
     }
   };
 
-  const addEnvVar = () => {
-    if (!newEnvVar.key) return;
-
-    setNewServer({
-      ...newServer,
-      env: [...(newServer.env || []), { ...newEnvVar }],
-    });
-
-    setNewEnvVar({ key: "", value: "" });
-  };
-
-  const removeEnvVar = (index: number) => {
-    const updatedEnv = [...(newServer.env || [])];
-    updatedEnv.splice(index, 1);
-    setNewServer({ ...newServer, env: updatedEnv });
-
-    // Clean up visibility state for this index
-    const updatedVisibility = { ...showSensitiveEnvValues };
-    delete updatedVisibility[index];
-    setShowSensitiveEnvValues(updatedVisibility);
-
-    // If currently editing this value, cancel editing
-    if (editingEnvIndex === index) {
-      setEditingEnvIndex(null);
-    }
-  };
-
-  const startEditEnvValue = (index: number, value: string) => {
-    setEditingEnvIndex(index);
-    setEditedEnvValue(value);
-  };
-
-  const saveEditedEnvValue = () => {
-    if (editingEnvIndex !== null) {
-      const updatedEnv = [...(newServer.env || [])];
-      updatedEnv[editingEnvIndex] = {
-        ...updatedEnv[editingEnvIndex],
-        value: editedEnvValue,
-      };
-      setNewServer({ ...newServer, env: updatedEnv });
-      setEditingEnvIndex(null);
-    }
-  };
-
   const addHeader = () => {
     if (!newHeader.key) return;
 
@@ -450,13 +415,6 @@ export const MCPServerManager = ({
     }
   };
 
-  const toggleSensitiveEnvValue = (index: number) => {
-    setShowSensitiveEnvValues((prev) => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
-  };
-
   const toggleSensitiveHeaderValue = (index: number) => {
     setShowSensitiveHeaderValues((prev) => ({
       ...prev,
@@ -465,10 +423,7 @@ export const MCPServerManager = ({
   };
 
   const hasAdvancedConfig = (server: MCPServer) => {
-    return (
-      (server.env && server.env.length > 0) ||
-      (server.headers && server.headers.length > 0)
-    );
+    return server.headers && server.headers.length > 0;
   };
 
   // Editing support
@@ -480,14 +435,11 @@ export const MCPServerManager = ({
       type: server.type,
       command: server.command,
       args: server.args,
-      env: server.env,
       headers: server.headers,
     });
     setView("add");
     // Reset sensitive value visibility states
-    setShowSensitiveEnvValues({});
     setShowSensitiveHeaderValues({});
-    setEditingEnvIndex(null);
     setEditingHeaderIndex(null);
   };
 
@@ -496,9 +448,7 @@ export const MCPServerManager = ({
       setView("list");
       setEditingServerId(null);
       setNewServer(INITIAL_NEW_SERVER);
-      setShowSensitiveEnvValues({});
       setShowSensitiveHeaderValues({});
-      setEditingEnvIndex(null);
       setEditingHeaderIndex(null);
     } else {
       resetAndClose();
@@ -522,7 +472,6 @@ export const MCPServerManager = ({
     setView("list");
     setEditingServerId(null);
     setNewServer(INITIAL_NEW_SERVER);
-    setShowSensitiveEnvValues({});
     setShowSensitiveHeaderValues({});
   };
 
@@ -632,11 +581,11 @@ export const MCPServerManager = ({
           </DialogTitle>
           <DialogDescription>
             {t("description")}
-            {selectedServers.length > 0 && (
+            {activeServersCount > 0 && (
               <span className="block mt-1 text-xs font-medium text-primary">
                 {t("activeServers", {
-                  count: selectedServers.length,
-                  plural: selectedServers.length === 1 ? "one" : "other",
+                  count: activeServersCount,
+                  plural: activeServersCount === 1 ? "one" : "other",
                 })}
               </span>
             )}
@@ -931,162 +880,6 @@ export const MCPServerManager = ({
 
               {/* Advanced Configuration */}
               <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="env-vars">
-                  <AccordionTrigger className="text-sm py-2">
-                    {t("environmentVariables")}
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-3">
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <Label
-                            htmlFor="env-key"
-                            className="text-xs mb-1 block"
-                          >
-                            {t("key")}
-                          </Label>
-                          <Input
-                            id="env-key"
-                            value={newEnvVar.key}
-                            onChange={(e) =>
-                              setNewEnvVar({
-                                ...newEnvVar,
-                                key: e.target.value,
-                              })
-                            }
-                            placeholder="API_KEY"
-                            className="h-8 relative z-0"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <Label
-                            htmlFor="env-value"
-                            className="text-xs mb-1 block"
-                          >
-                            {t("value")}
-                          </Label>
-                          <Input
-                            id="env-value"
-                            value={newEnvVar.value}
-                            onChange={(e) =>
-                              setNewEnvVar({
-                                ...newEnvVar,
-                                value: e.target.value,
-                              })
-                            }
-                            placeholder="your-secret-key"
-                            className="h-8 relative z-0"
-                            type="text"
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={addEnvVar}
-                          disabled={!newEnvVar.key}
-                          className="h-8 mt-1"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-
-                      {newServer.env && newServer.env.length > 0 ? (
-                        <div className="border rounded-md divide-y">
-                          {newServer.env.map((env, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between p-2 text-sm"
-                            >
-                              <div className="flex-1 flex items-center gap-1 truncate">
-                                <span className="font-mono text-xs">
-                                  {env.key}
-                                </span>
-                                <span className="mx-2 text-muted-foreground">
-                                  =
-                                </span>
-
-                                {editingEnvIndex === index ? (
-                                  <div className="flex gap-1 flex-1">
-                                    <Input
-                                      className="h-6 text-xs py-1 px-2"
-                                      value={editedEnvValue}
-                                      onChange={(e) =>
-                                        setEditedEnvValue(e.target.value)
-                                      }
-                                      onKeyDown={(e) =>
-                                        e.key === "Enter" &&
-                                        saveEditedEnvValue()
-                                      }
-                                      autoFocus
-                                    />
-                                    <Button
-                                      size="sm"
-                                      className="h-6 px-2"
-                                      onClick={saveEditedEnvValue}
-                                    >
-                                      {t("save")}
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      {isSensitiveKey(env.key) &&
-                                      !showSensitiveEnvValues[index]
-                                        ? maskValue(env.value)
-                                        : env.value}
-                                    </span>
-                                    <span className="flex ml-1 gap-1">
-                                      {isSensitiveKey(env.key) && (
-                                        <button
-                                          onClick={() =>
-                                            toggleSensitiveEnvValue(index)
-                                          }
-                                          className="p-1 hover:bg-muted/50 rounded-full"
-                                        >
-                                          {showSensitiveEnvValues[index] ? (
-                                            <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                          ) : (
-                                            <Eye className="h-3 w-3 text-muted-foreground" />
-                                          )}
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={() =>
-                                          startEditEnvValue(index, env.value)
-                                        }
-                                        className="p-1 hover:bg-muted/50 rounded-full"
-                                      >
-                                        <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                      </button>
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeEnvVar(index)}
-                                className="h-6 w-6 p-0 ml-2"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground text-center py-2">
-                          {t("noEnvVarsAdded")}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {t("envVarsHint")}
-                      </p>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
                 <AccordionItem value="headers">
                   <AccordionTrigger className="text-sm py-2">
                     {t("httpHeaders")}
