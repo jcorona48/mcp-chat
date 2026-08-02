@@ -99,10 +99,12 @@ const StatusIndicator = ({
   status,
   onClick,
   hoverInfo,
+  latencyMs,
 }: {
   status?: ServerStatus;
   onClick?: () => void;
   hoverInfo?: string;
+  latencyMs?: number;
 }) => {
   const t = useTranslations("mcp");
   const isClickable = !!onClick;
@@ -120,6 +122,11 @@ const StatusIndicator = ({
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs text-green-500 hover:underline">
               {t("connected")}
+              {latencyMs !== undefined && (
+                <span className="ml-1 text-green-600/80 font-mono">
+                  {latencyMs}ms
+                </span>
+              )}
             </span>
           </div>
         );
@@ -664,6 +671,7 @@ export const MCPServerManager = ({
                                     toast.error(server.errorMessage)
                                   }
                                   hoverInfo={getServerStatusHoverInfo(server)}
+                                  latencyMs={server.latencyMs}
                                 />
 
                                 {/* Server actions */}

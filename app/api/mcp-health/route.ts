@@ -16,6 +16,7 @@ function toHeadersObject(headers?: KeyValuePair[]): Record<string, string> {
 }
 
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
   try {
     const { url, headers } = await req.json();
 
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     if (tools && tools.tools) {
       return NextResponse.json({
         ready: true,
+        latencyMs: Date.now() - startedAt,
         tools: tools.tools.map(tool => ({
           name: tool.name,
           description: tool.description,
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
     console.error('MCP health check failed:', error);
     return NextResponse.json({
       ready: false,
+      latencyMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 503 });
   }

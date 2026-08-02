@@ -38,6 +38,7 @@ export interface MCPServer {
   status?: ServerStatus;
   errorMessage?: string;
   tools?: MCPTool[];
+  latencyMs?: number;
 }
 
 export interface MCPServerApi {
@@ -69,7 +70,7 @@ const MCPContext = createContext<MCPContextType | undefined>(undefined);
 async function checkServerHealth(
   url: string,
   headers?: KeyValuePair[]
-): Promise<{ ready: boolean; tools?: MCPTool[]; error?: string }> {
+): Promise<{ ready: boolean; tools?: MCPTool[]; error?: string; latencyMs?: number }> {
   try {
     const response = await fetch('/api/mcp-health', {
       method: 'POST',
@@ -128,12 +129,13 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
   const updateServerWithTools = (
     serverId: string,
     tools: MCPTool[],
-    status: ServerStatus = "connected"
+    status: ServerStatus = "connected",
+    latencyMs?: number
   ) => {
     setMcpServers((currentServers) =>
       currentServers.map((server) =>
         server.id === serverId
-          ? { ...server, tools, status, errorMessage: undefined }
+          ? { ...server, tools, status, latencyMs, errorMessage: undefined }
           : server
       )
     );
@@ -189,7 +191,7 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
       const healthResult = await checkServerHealth(server.url, server.headers);
       
       if (healthResult.ready && healthResult.tools) {
-        updateServerWithTools(serverId, healthResult.tools, "connected");
+        updateServerWithTools(serverId, healthResult.tools, "connected", healthResult.latencyMs);
         activeServersRef.current[serverId] = true;
         return true;
       } else {
