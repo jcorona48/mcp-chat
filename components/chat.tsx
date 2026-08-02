@@ -9,12 +9,14 @@ import { Messages } from "./messages";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
 import { getUserId } from "@/lib/user-id";
-import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { convertToUIMessages } from "@/lib/chat-store";
 import { type Message as DBMessage } from "@/lib/db/schema";
 import { nanoid } from "nanoid";
 import { useMCP } from "@/lib/context/mcp-context";
+import { useAiProvider } from "@/lib/context/ai-provider-context";
+import { useLocalStorage } from "@/lib/hooks/use-local-storage";
+import { AI_SYSTEM_PROMPT_KEY } from "@/lib/ai/types";
 import { useModelExecutionInfo } from "@/lib/hooks/use-model-execution-info";
 import { ModelExecutionNotice } from "@/components/model-execution-notice";
 import { useAutoModelRetry } from "@/lib/hooks/use-auto-model-retry";
@@ -23,6 +25,9 @@ import { fetchWithErrorHandlers } from "@/lib/utils";
 import { useDataStream } from "@/providers/data-stream-provider";
 import { ChatMessage } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Search, X } from "lucide-react";
+import { SystemPromptDialog } from "./system-prompt-dialog";
 // Type for chat data from DB
 interface ChatData {
     id: string;
@@ -55,11 +60,17 @@ export default function Chat() {
         "selectedModel",
         defaultModel,
     );
+    const [systemPrompt] = useLocalStorage<string>(AI_SYSTEM_PROMPT_KEY, "");
     const [userId, setUserId] = useState<string>(() => getUserId());
     const [generatedChatId] = useState<string>(() =>
         typeof window === "undefined" ? "" : nanoid(),
     );
     const [input, setInput] = useState("");
+    const [attachments, setAttachments] = useState<File[]>([]);
+    const [conversationSearch, setConversationSearch] = useState("");
+    const [temperature, setTemperature] = useState<number | null>(null);
+    const [maxTokens, setMaxTokens] = useState<number | null>(null);
+    const [systemPromptOpen, setSystemPromptOpen] = useState(false);
     const hydratedChatIdRef = useRef<string | null>(null);
     const activeChatId = chatId || generatedChatId;
     const router = useRouter();
@@ -83,6 +94,9 @@ export default function Chat() {
 
     // Get MCP server data from context
     const { mcpServersForApi } = useMCP();
+
+    // Get AI provider credentials and custom models from context
+    const { apiKeys, customModels } = useAiProvider();
 
     // Use React Query to fetch chat history
     const {
@@ -154,6 +168,11 @@ export default function Chat() {
         mcpServers: mcpServersForApi,
         chatId: activeChatId,
         userId,
+        apiKeys,
+        customModels,
+        systemPrompt,
+        temperature,
+        maxTokens,
     });
 
     transportConfigRef.current = {
@@ -161,6 +180,11 @@ export default function Chat() {
         mcpServers: mcpServersForApi,
         chatId: activeChatId,
         userId,
+        apiKeys,
+        customModels,
+        systemPrompt,
+        temperature,
+        maxTokens,
     };
 
     useEffect(() => {
@@ -209,6 +233,11 @@ export default function Chat() {
                         mcpServers: config.mcpServers,
                         chatId: config.chatId,
                         userId: config.userId,
+                        apiKeys: config.apiKeys,
+                        customModels: config.customModels,
+                        systemPrompt: config.systemPrompt,
+                        temperature: config.temperature,
+                        maxTokens: config.maxTokens,
                         messages,
                     },
                 };
@@ -254,20 +283,37 @@ export default function Chat() {
     const handleSubmit = useCallback(
         (e: React.FormEvent<HTMLFormElement>) => {
             e.preventDefault();
-            if (!input.trim()) return;
+            if (!input.trim() && attachments.length === 0) return;
 
             debugChatClient("submit", {
                 inputLength: input.length,
+                attachments: attachments.length,
                 chatId,
                 generatedChatId,
                 status,
             });
 
-            sendMessage({ text: input });
+            const fileList = new DataTransfer();
+            attachments.forEach((file) => fileList.items.add(file));
+
+            sendMessage({
+                text: input,
+                ...(attachments.length > 0 ? { files: fileList.files } : {}),
+            });
             setInput("");
+            setAttachments([]);
         },
-        [input, sendMessage, chatId, generatedChatId, status],
+        [input, attachments, sendMessage, chatId, generatedChatId, status],
     );
+
+    const handleAttachFiles = (files: FileList | null) => {
+        if (!files) return;
+        setAttachments((prev) => [...prev, ...Array.from(files)]);
+    };
+
+    const handleRemoveAttachment = (index: number) => {
+        setAttachments((prev) => prev.filter((_, i) => i !== index));
+    };
 
     const navigateToNewChat = useCallback(() => {
         if (!chatId && generatedChatId && !hasNavigatedRef.current) {
@@ -275,6 +321,13 @@ export default function Chat() {
             router.push(`/chat/${generatedChatId}`);
         }
     }, [chatId, generatedChatId, router]);
+
+    const handleEditSubmit = useCallback(
+        (text: string, messageId: string) => {
+            sendMessage({ text, messageId });
+        },
+        [sendMessage],
+    );
 
     useEffect(() => {
         if (status === "ready" && messages.length > 0 && !chatId) {
@@ -311,11 +364,27 @@ export default function Chat() {
         isLoadingChat;
     const showConversation = isMounted && (messages.length > 0 || isLoadingChat);
 
+    const tChat = useTranslations("chat");
+
+    const filteredMessages = useMemo(() => {
+        const query = conversationSearch.trim().toLowerCase();
+        if (!query) return messages;
+        return messages.filter((m) =>
+            m.parts.some(
+                (p) =>
+                    p.type === "text" &&
+                    p.text.toLowerCase().includes(query),
+            ),
+        );
+    }, [messages, conversationSearch]);
+
     return (
         <div className="h-dvh flex flex-col justify-center w-full max-w-107.5 sm:max-w-3xl mx-auto px-4 sm:px-6 py-3">
             {!showConversation ? (
                 <div className="max-w-xl mx-auto w-full">
-                    <ProjectOverview />
+                    <ProjectOverview
+                        onSendSuggestion={(text) => sendMessage({ text })}
+                    />
                     <form
                         onSubmit={handleFormSubmit}
                         className="mt-4 w-full mx-auto"
@@ -328,16 +397,59 @@ export default function Chat() {
                             isLoading={isLoading}
                             status={effectiveStatus}
                             stop={stop}
+                            attachments={attachments}
+                            onAttachFiles={handleAttachFiles}
+                            onRemoveAttachment={handleRemoveAttachment}
+                            temperature={temperature}
+                            maxTokens={maxTokens}
+                            onTemperatureChange={setTemperature}
+                            onMaxTokensChange={setMaxTokens}
                         />
                     </form>
                 </div>
             ) : (
                 <>
+                    <div className="flex items-center justify-center mb-2">
+                        {messages.length > 0 && (
+                            <div className="relative w-full max-w-md">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                                <input
+                                    type="text"
+                                    value={conversationSearch}
+                                    onChange={(e) =>
+                                        setConversationSearch(e.target.value)
+                                    }
+                                    placeholder={tChat("searchConversation")}
+                                    className="w-full rounded-full border border-border/60 bg-background/50 py-1.5 pl-9 pr-14 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                                />
+                                {conversationSearch.trim() && (
+                                    <>
+                                        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/70">
+                                            {filteredMessages.length}/
+                                            {messages.length}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setConversationSearch("")
+                                            }
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground/70 hover:text-foreground hover:bg-foreground/5"
+                                            title={tChat("clearSearch")}
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <div className="flex-1 overflow-y-auto min-h-0 pb-2">
                         <Messages
-                            messages={messages}
+                            messages={filteredMessages}
                             isLoading={isLoading}
                             status={effectiveStatus}
+                            onEditSubmit={handleEditSubmit}
+                            onRegenerate={regenerate}
                         />
                     </div>
                     <form
@@ -352,10 +464,24 @@ export default function Chat() {
                             isLoading={isLoading}
                             status={effectiveStatus}
                             stop={stop}
+                            attachments={attachments}
+                            onAttachFiles={handleAttachFiles}
+                            onRemoveAttachment={handleRemoveAttachment}
+                            temperature={temperature}
+                            maxTokens={maxTokens}
+                            onTemperatureChange={setTemperature}
+                            onMaxTokensChange={setMaxTokens}
+                            systemPromptActive={systemPrompt.trim().length > 0}
+                            onSystemPromptClick={() => setSystemPromptOpen(true)}
                         />
                     </form>
                 </>
             )}
+
+            <SystemPromptDialog
+                open={systemPromptOpen}
+                onOpenChange={setSystemPromptOpen}
+            />
         </div>
     );
 }

@@ -1,7 +1,7 @@
-import { MODELS, modelDetails, type modelID } from "@/ai/providers";
+import { MODELS, modelDetails, type modelID, type PresetModelID } from "@/ai/providers";
 
 function getProvider(modelId: modelID): string {
-  return modelDetails[modelId]?.provider ?? "unknown";
+  return modelDetails[modelId as PresetModelID]?.provider ?? "unknown";
 }
 
 export function getModelFallbackOrder(baseModel: modelID): modelID[] {

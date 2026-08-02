@@ -1,164 +1,210 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 
 import {
   customProvider,
-  wrapLanguageModel,
-  extractReasoningMiddleware
+  type LanguageModel,
 } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
+import {
+  LEGACY_API_KEYS,
+  isCustomModelId,
+  isKeylessProvider,
+  parseCustomModelId,
+  type ApiKeyMap,
+  type CustomModelDef,
+  type KnownProviderKey,
+} from "@/lib/ai/types";
 
 export interface ModelInfo {
   provider: string;
+  providerKey: string;
   name: string;
   description: string;
   apiVersion: string;
+  providerModelId: string;
   capabilities: string[];
 }
 
-const middleware = extractReasoningMiddleware({
-  tagName: 'think',
-});
+const LLM7_BASE_URL = "https://api.llm7.io/v1";
+const ANON_API_KEY = "unused";
 
-// Helper to get API keys from environment variables first, then localStorage
-const getApiKey = (key: string): string | undefined => {
-  if (typeof window !== 'undefined' && window.localStorage.getItem(key)) {
-    return window.localStorage.getItem(key) || undefined;
-  }
-  
-  if (process.env[key]) {
-    return process.env[key] || undefined;
-  }
-
-  return undefined;
-};
-
-const groqClient = createGroq({
-  apiKey: getApiKey('GROQ_API_KEY'),
-});
-
-const openRouterClient = createOpenRouter({
-  apiKey: getApiKey('OPENROUTE_API_KEY'),
+const llm7Client = createOpenAI({
+  apiKey: ANON_API_KEY,
+  baseURL: LLM7_BASE_URL,
 });
 
 const languageModels = {
-  "qwen3-32b": wrapLanguageModel(
-    {
-      model: groqClient('qwen/qwen3-32b'),
-      middleware
-    }
-  ),
-  "tencent/hy3": openRouterClient('tencent/hy3', {
-    usage: {
-      include: true
-    },
-  }),
-  "tencent/hy3-preview": openRouterClient('tencent/hy3-preview', {
-    usage: {
-      include: true
-    },
-  }),
-  "inclusionai/ling-2.6-1t": openRouterClient('inclusionai/ling-2.6-1t', {
-    usage: {
-      include: true
-    },
-  }),
-  "inclusionai/ling-2.6-flash": openRouterClient('inclusionai/ling-2.6-flash', {
-    usage: {
-      include: true
-    },
-  }),
-  "inclusionai/ling-3.0-flash:free": openRouterClient('inclusionai/ling-3.0-flash:free', {
-    usage: {
-      include: true
-    },
-  }),
-  "google/gemma-4-26b-a4b-it:free": openRouterClient('google/gemma-4-26b-a4b-it:free', {
-    usage: {
-      include: true
-    },
-  }),
-  "nvidia/nemotron-3-super-120b-a12b:free": openRouterClient('nvidia/nemotron-3-super-120b-a12b:free', {
-    usage: {
-      include: true
-     },
-   }),
+  "gpt-oss:20b": llm7Client("gpt-oss:20b"),
+  "codestral-latest": llm7Client("codestral-latest"),
 };
 
 export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
-  "tencent/hy3": {
-    provider: "OpenRouter",
-    name: "Tencent HY3",
-    description: "Tencent's latest HY3 model with strong reasoning and coding capabilities.",
-    apiVersion: "tencent/hy3",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  "gpt-oss:20b": {
+    provider: "LLM7",
+    providerKey: "llm7",
+    name: "GPT-OSS 20B",
+    description: "OpenAI's open-weight GPT-OSS 20B, served anonymously by LLM7. Free, no API key required.",
+    apiVersion: "gpt-oss:20b",
+    providerModelId: "gpt-oss:20b",
+    capabilities: ["Reasoning", "Agentic"]
   },
-  "inclusionai/ling-2.6-1t": {
-    provider: "OpenRouter",
-    name: "Inclusion AI Ling 2.6 1T",
-    description: "Inclusion AI's Ling 2.6 1T model with strong reasoning and coding capabilities.",
-    apiVersion: "inclusionai/ling-2.6-1t",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
-  "tencent/hy3-preview": {
-    provider: "OpenRouter",
-    name: "Tencent HY3 Preview",
-    description: "Preview version of Tencent's HY3 model with strong reasoning and coding capabilities.",
-    apiVersion: "tencent/hy3-preview",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
-  "inclusionai/ling-2.6-flash": {
-    provider: "OpenRouter",
-    name: "Inclusion AI Ling 2.6 Flash",
-    description: "Inclusion AI's Ling 2.6 Flash model with strong reasoning and coding capabilities.",
-    apiVersion: "inclusionai/ling-2.6-flash",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
-  "google/gemma-4-26b-a4b-it:free": {
-    provider: "OpenRouter",
-    name: "Google Gemma 4",
-    description: "Google's latest Gemma 4 model with strong reasoning and coding capabilities.",
-    apiVersion: "google/gemma-4-26b-a4b-it:free",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
-  "qwen3-32b": {
-    provider: "Groq",
-    name: "Qwen 3 32B",
-    description: "Latest version of Alibaba's Qwen 32B with strong reasoning and coding capabilities.",
-    apiVersion: "qwen3-32b",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
-  },
-  "inclusionai/ling-3.0-flash:free": {
-    provider: "OpenRouter",
-    name: "Ling 3.0 Flash",
-    description: "Preview version of Inclusion AI's Ling 3.0 Flash with good balance of capabilities.",
-    apiVersion: "inclusionai/ling-3.0-flash:free",
-    capabilities: ["Balanced", "Efficient", "Agentic"]
-  },
-  "nvidia/nemotron-3-super-120b-a12b:free": {
-    provider: "OpenRouter",
-    name: "NVIDIA NeMoTron 3",
-    description: "NVIDIA's latest NeMoTron 3 Super model with strong reasoning and coding capabilities.",
-    apiVersion: "nvidia/nemotron-3-super-120b-a12b:free",
-    capabilities: ["Reasoning", "Efficient", "Agentic"]
+  "codestral-latest": {
+    provider: "LLM7",
+    providerKey: "llm7",
+    name: "Codestral (latest)",
+    description: "Mistral's latest Codestral, served anonymously by LLM7. Free, no API key required.",
+    apiVersion: "codestral-latest",
+    providerModelId: "codestral-latest",
+    capabilities: ["Code", "Efficient", "Agentic"]
   },
 };
-
-// Update API keys when localStorage changes (for runtime updates)
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (event) => {
-    // Reload the page if any API key changed to refresh the providers
-    if (event.key?.includes('API_KEY')) {
-      window.location.reload();
-    }
-  });
-}
 
 export const model = customProvider({
   languageModels,
 });
 
-export type modelID = keyof typeof languageModels;
+export type PresetModelID = keyof typeof languageModels;
+export type modelID = PresetModelID | (string & {});
 
 export const MODELS = Object.keys(languageModels);
 
-export const defaultModel: modelID = "inclusionai/ling-3.0-flash:free";
+export const defaultModel: modelID = "gpt-oss:20b";
+
+function getEnvApiKey(providerKey: string): string | undefined {
+  const envVar = LEGACY_API_KEYS[providerKey as KnownProviderKey];
+  if (envVar && process.env[envVar]) {
+    return process.env[envVar];
+  }
+  return undefined;
+}
+
+function buildProviderModel(
+  providerKey: string,
+  apiKey: string,
+  baseURL: string | undefined,
+  providerModelId: string
+): LanguageModelV3 {
+  const common = {
+    apiKey,
+    ...(baseURL ? { baseURL } : {}),
+  };
+
+  switch (providerKey) {
+    case "openai":
+      return createOpenAI(common)(providerModelId);
+    case "anthropic":
+      return createAnthropic(common)(providerModelId);
+    case "google":
+      return createGoogleGenerativeAI(common)(providerModelId);
+    case "groq":
+      return createGroq(common)(providerModelId);
+    case "xai":
+      return createOpenAI({
+        apiKey,
+        baseURL: "https://api.x.ai/v1",
+      })(providerModelId);
+    case "openrouter":
+      return createOpenRouter(common)(providerModelId, {
+        usage: { include: true },
+      });
+    case "llm7":
+      return createOpenAI({
+        apiKey: apiKey || ANON_API_KEY,
+        baseURL: baseURL || LLM7_BASE_URL,
+      })(providerModelId);
+    default:
+      if (!baseURL) {
+        throw new Error(
+          `Custom provider "${providerKey}" requires a base URL to be configured.`
+        );
+      }
+      return createOpenAI({ apiKey, baseURL })(providerModelId);
+  }
+}
+
+function buildPresetModel(
+  presetId: PresetModelID,
+  info: ModelInfo,
+  apiKeys: ApiKeyMap
+): LanguageModel {
+  const userKey = apiKeys[info.providerKey];
+
+  if (isKeylessProvider(info.providerKey)) {
+    if (!userKey) {
+      return model.languageModel(presetId);
+    }
+    return buildProviderModel(
+      info.providerKey,
+      userKey,
+      undefined,
+      info.providerModelId
+    );
+  }
+
+  const key = userKey ?? getEnvApiKey(info.providerKey);
+  if (!key) {
+    return model.languageModel(presetId);
+  }
+
+  return buildProviderModel(
+    info.providerKey,
+    key,
+    undefined,
+    info.providerModelId
+  );
+}
+
+function buildCustomModel(
+  def: CustomModelDef,
+  apiKeys: ApiKeyMap
+): LanguageModel {
+  const keyless = isKeylessProvider(def.provider);
+  const apiKey = keyless
+    ? apiKeys[def.provider] || ANON_API_KEY
+    : apiKeys[def.provider];
+  if (!apiKey) {
+    throw new Error(
+      `No API key configured for provider "${def.provider}". Add one in the AI settings.`
+    );
+  }
+
+  return buildProviderModel(def.provider, apiKey, def.baseURL, def.providerModelId);
+}
+
+export interface ResolveModelOptions {
+  apiKeys?: ApiKeyMap;
+  customModels?: CustomModelDef[];
+}
+
+export function resolveModel(
+  modelId: string,
+  options: ResolveModelOptions = {}
+): LanguageModel {
+  const { apiKeys = {}, customModels = [] } = options;
+
+  if (isCustomModelId(modelId)) {
+    const def = customModels.find((m) => m.id === modelId);
+    if (def) {
+      return buildCustomModel(def, apiKeys);
+    }
+
+    const parsed = parseCustomModelId(modelId);
+    throw new Error(
+      parsed
+        ? `Model "${modelId}" is not enabled. Enable it in the AI settings.`
+        : `Unknown model: ${modelId}`
+    );
+  }
+
+  const presetId = modelId as PresetModelID;
+  const preset = modelDetails[presetId];
+  if (preset) {
+    return buildPresetModel(presetId, preset, apiKeys);
+  }
+
+  throw new Error(`Unknown model: ${modelId}`);
+}

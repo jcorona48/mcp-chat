@@ -14,6 +14,7 @@ export const chats = pgTable('chats', {
   title: text('title').notNull().default('New Chat'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  pinnedAt: timestamp('pinned_at'),
 });
 
 export const messages = pgTable('messages', {

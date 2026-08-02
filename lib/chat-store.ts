@@ -2,9 +2,7 @@ import { db } from "./db";
 import { chats, messages, type Chat, type Message, MessageRole, type MessagePart, type DBMessage } from "./db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { generateTitle } from "@/app/actions";
-
-type AIMessage = {
+import { generateTitle } from "@/app/actions";type AIMessage = {
   role: string;
   content: string | any[];
   id?: string;
@@ -298,7 +296,10 @@ export function getTextContent(message: Message): string {
 export async function getChats(userId: string) {
   return await db.query.chats.findMany({
     where: eq(chats.userId, userId),
-    orderBy: [desc(chats.updatedAt)]
+    orderBy: [
+      desc(chats.pinnedAt),
+      desc(chats.updatedAt)
+    ]
   });
 }
 
@@ -335,6 +336,62 @@ export async function deleteChat(id: string, userId: string) {
     )
   );
 } 
+
+export async function renameChat(id: string, userId: string, title: string) {
+  const cleanedTitle = title.trim();
+  if (!cleanedTitle) {
+    throw new Error("Title cannot be empty");
+  }
+
+  const chat = await db.query.chats.findFirst({
+    where: and(
+      eq(chats.id, id),
+      eq(chats.userId, userId)
+    ),
+  });
+
+  if (!chat) {
+    throw new Error("Chat not found");
+  }
+
+  await db
+    .update(chats)
+    .set({
+      title: cleanedTitle,
+      updatedAt: new Date()
+    })
+    .where(and(
+      eq(chats.id, id),
+      eq(chats.userId, userId)
+    ));
+
+  return { id, title: cleanedTitle };
+}
+
+export async function pinChat(id: string, userId: string, pinned: boolean) {
+  const chat = await db.query.chats.findFirst({
+    where: and(
+      eq(chats.id, id),
+      eq(chats.userId, userId)
+    ),
+  });
+
+  if (!chat) {
+    throw new Error("Chat not found");
+  }
+
+  await db
+    .update(chats)
+    .set({
+      pinnedAt: pinned ? new Date() : null,
+    })
+    .where(and(
+      eq(chats.id, id),
+      eq(chats.userId, userId)
+    ));
+
+  return { id, pinnedAt: pinned ? new Date() : null };
+}
 
 export async function updateMessage({
   id,

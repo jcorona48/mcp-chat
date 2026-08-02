@@ -1,4 +1,4 @@
-import { model, type modelID } from "@/ai/providers";
+import { resolveModel, type modelID } from "@/ai/providers";
 import { generateTitle } from "@/app/actions";
 import { createTraceLogger } from "@/lib/chat-debug";
 import {
@@ -174,12 +174,28 @@ export async function POST(req: Request) {
         selectedModel,
         userId,
         mcpServers = [],
+        apiKeys = {},
+        customModels = [],
+        systemPrompt = "",
+        temperature,
+        maxTokens,
     }: {
         messages: UIMessage[];
         chatId?: string;
         selectedModel: modelID;
         userId: string;
         mcpServers?: MCPServerConfig[];
+        apiKeys?: Record<string, string | undefined>;
+        customModels?: {
+            id: string;
+            provider: string;
+            providerModelId: string;
+            label: string;
+            baseURL?: string;
+        }[];
+        systemPrompt?: string;
+        temperature?: number | null;
+        maxTokens?: number | null;
     } = await req.json();
     const userMessage = messages.findLast((m) => m.role === "user");
 
@@ -302,6 +318,10 @@ export async function POST(req: Request) {
 
         const executionModel = modelDecision.executionModel;
         const modelAutoSwitched = modelDecision.autoSwitched;
+        const executionLanguageModel = resolveModel(executionModel, {
+            apiKeys,
+            customModels,
+        });
         const instrumentedTools = withToolExecutionMetrics(
             { ...tools, ...createAiConfigTools(mcpServers) },
             trace,
@@ -336,7 +356,7 @@ export async function POST(req: Request) {
                 let firstChunkCaptured = false;
 
                 const result = streamText({
-                    model: model.languageModel(executionModel),
+                    model: executionLanguageModel,
                     abortSignal: combinedSignal,
                     system: `You are a helpful assistant with access to a variety of tools.
 
@@ -362,12 +382,28 @@ export async function POST(req: Request) {
     - Respond according to tool's response.
     - Use the tools to answer the user's question.
     - If you don't know the answer, use the tools to find the answer or say you don't know.
-    `,
+
+    ## Presentation Rules
+    - NEVER dump raw JSON, code, or internal tool output directly to the user.
+    - Always translate tool results into a clean, human-friendly format for non-technical users: use tables, lists, bullet points, and clear headings.
+    - If a tool returns technical details (IDs, schemas, raw data), summarize what matters to the user and hide internal noise.
+    - Format currency, dates, and numbers in a readable way.
+    - If a tool returns an error or an empty result, explain it in plain language and suggest what the user can do next.
+
+    ## Suggested Follow-ups
+    - At the very end of your response, in natural language and without any special formatting or UI markup, include a short list of 2-3 possible follow-up questions or next steps the user could ask. Start it with a line like "¿Quieres seguir explorando?" or an equivalent natural phrase, followed by the suggestions. This is optional and should feel like a natural part of the conversation, not a menu.
+
+    ${systemPrompt ? `## User-Provided Instructions
+    The user has set the following custom instructions. Follow them on top of the general rules above:
+    ${systemPrompt}
+    ` : ""}`,
                     messages: modelMessages,
                     tools: instrumentedTools,
                     timeout: STREAM_TIMEOUT_MS,
                     stopWhen: stepCountIs(STEP_COUNT_LIMIT),
                     maxRetries: 2,
+                    ...(temperature !== undefined && temperature !== null && { temperature }),
+                    ...(maxTokens !== undefined && maxTokens !== null && { maxOutputTokens: maxTokens }),
                     ...(Object.keys(instrumentedTools).length > 0 && { toolChoice: "auto" }),
                     providerOptions: {
                         google: {
@@ -380,6 +416,9 @@ export async function POST(req: Request) {
                                 type: "enabled",
                                 budgetTokens: 12000,
                             },
+                        },
+                        openai: {
+                            store: false,
                         },
                     },
                     experimental_transform: smoothStream({
@@ -414,7 +453,7 @@ export async function POST(req: Request) {
                             tools[toolCall.toolName as keyof typeof tools];
 
                         const { output: repairedArgs } = await streamText({
-                            model: model.languageModel(executionModel),
+                            model: executionLanguageModel,
                             output: Output.object({ schema: tool.inputSchema }),
                             prompt: [
                                 `The model tried to call the tool "${toolCall.toolName}"` +
@@ -442,13 +481,13 @@ export async function POST(req: Request) {
 
                         const detailed = getDetailedErrorMessage(error);
                         const shouldRecommendSwitch =
-                            selectedModel === "inclusionai/ling-2.6-flash" &&
+                            selectedModel === "gpt-oss:20b" &&
                             hasTools &&
                             !modelAutoSwitched &&
                             sawToolCallingFailure;
 
                         lastErrorMessageForUser = shouldRecommendSwitch
-                            ? `${detailed}\n\nSugerencia: cambia el modelo a qwen3-32b para una mayor estabilidad cuando uses tools.`
+                            ? `${detailed}\n\nSugerencia: cambia el modelo a codestral-latest para una mayor estabilidad cuando uses tools.`
                             : detailed;
 
                         trace("stream_on_error", {

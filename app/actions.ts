@@ -1,7 +1,6 @@
 "use server";
 
-import { generateText, Output } from "ai";
-import { z } from "zod";
+import { generateText } from "ai";
 import { model } from "@/ai/providers";
 
 // Helper to extract text content from a message regardless of format
@@ -62,41 +61,49 @@ function sanitizeTitle(rawTitle: string): string {
     return withoutWrappingPunctuation;
 }
 
+function fallbackTitle(messages: any[]): string {
+    const userMessage = messages.find((m) => m.role === "user");
+    if (!userMessage) {
+        return "New Chat";
+    }
+    const text = getMessageText(userMessage);
+    if (!text.trim()) {
+        return "New Chat";
+    }
+    return text.length > 60 ? `${text.slice(0, 60)}...` : text;
+}
+
 export async function generateTitle(messages: any[]): Promise<string> {
+    const fallback = fallbackTitle(messages);
+
+    if (fallback === "New Chat") {
+        return fallback;
+    }
+
     try {
-        // Find the first user message and use it for title generation
-        const userMessage = messages.find((m) => m.role === "user");
+        const { text } = await generateText({
+            model: model.languageModel("gpt-oss:20b"),
+            temperature: 0.7,
+            maxOutputTokens: 128,
+            system: `You are a title generator for a chat application. Your only job is to produce a short, concise title that summarizes the topic of a conversation.
 
-        if (!userMessage) {
-            return "New Chat";
-        }
+Strict rules:
+- Output ONLY the title text, nothing else.
+- No quotes, no punctuation at the start or end, no bullet points, no explanations, no emojis.
+- Max 6 words.
+- Match the language of the conversation.
+- The title should capture the intent or main subject of the FIRST message.`,
+            prompt: `Conversation preview (first user message):
+"${getMessageText(messages.find((m) => m.role === "user")).slice(0, 300)}"
 
-        // Extract text content from the message
-        const messageText = getMessageText(userMessage);
-
-        if (!messageText.trim()) {
-            return "New Chat";
-        }
-
-        const { output } = await generateText({
-            output: Output.object({
-                schema: z.object({
-                    title: z
-                        .string()
-                        .describe(
-                            "A short, descriptive title for the conversation",
-                        ),
-                }),
-            }),
-            model: model.languageModel("nvidia/nemotron-3-super-120b-a12b:free"),
-            prompt: `Generate a concise title (max 6 words) for a conversation that starts with: "${messageText.slice(0, 200)}"`,
+Title:`,
         });
-        
-        console.log("Generated title output:", output);
 
-        return sanitizeTitle(output.title || "New Chat");
+        const cleaned = text.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "");
+        const title = sanitizeTitle(cleaned);
+        return title === "New Chat" ? fallback : title;
     } catch (error) {
         console.error("Error generating title:", error);
-        return "New Chat";
+        return fallback;
     }
 }
