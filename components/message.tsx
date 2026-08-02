@@ -1,18 +1,23 @@
 "use client";
 
 import type { UIMessage as TMessage } from "ai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/utils";
 import {
+  CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  CopyIcon,
   LightbulbIcon,
+  PencilIcon,
+  RefreshCwIcon,
+  XIcon,
 } from "lucide-react";
 import { SpinnerIcon } from "./icons";
 import { ToolInvocation } from "./tool-invocation";
-import { CopyButton } from "./copy-button";
+import { useCopy } from "@/lib/hooks/use-copy";
 
 interface ReasoningPart {
   type: "reasoning";
@@ -139,16 +144,29 @@ export function ReasoningMessagePart({
   );
 }
 
+const COLLAPSE_CHAR_THRESHOLD = 4000;
+const COLLAPSE_PREVIEW_LENGTH = 1200;
+
 const PurePreviewMessage = ({
   message,
   isLatestMessage,
   status,
+  onEditSubmit,
+  onRegenerate,
 }: {
   message: TMessage;
   isLoading: boolean;
   status: "error" | "submitted" | "streaming" | "ready";
   isLatestMessage: boolean;
+  onEditSubmit?: (text: string, messageId: string) => void;
+  onRegenerate?: () => void;
 }) => {
+  const t = useTranslations("common");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { copied, copy } = useCopy();
+
   // Create a string with all text parts for copy functionality
   const getMessageText = () => {
     if (!message.parts) return "";
@@ -158,10 +176,65 @@ const PurePreviewMessage = ({
       .join("\n\n");
   };
 
+  const handleStartEdit = () => {
+    setEditDraft(getMessageText());
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditDraft("");
+  };
+
+  const handleSubmitEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editDraft.trim()) return;
+    onEditSubmit?.(editDraft, message.id);
+    setIsEditing(false);
+  };
+
   // Only show copy button if the message is from the assistant and not currently streaming
   const shouldShowCopyButton =
     message.role === "assistant" &&
     (!isLatestMessage || status !== "streaming");
+
+  // Only show regenerate button on the latest assistant message when idle
+  const shouldShowRegenerateButton =
+    isLatestMessage &&
+    message.role === "assistant" &&
+    status === "ready";
+
+  const isUserMessage = message.role === "user";
+  const showActions = shouldShowCopyButton || isUserMessage;
+  const copyMessageText = () => copy(getMessageText());
+
+  const fullText = getMessageText();
+  const isCollapsible =
+    status === "ready" && fullText.length > COLLAPSE_CHAR_THRESHOLD;
+
+  const collapsedPreview = useMemo(() => {
+    if (fullText.length <= COLLAPSE_PREVIEW_LENGTH) return fullText;
+    const cut = fullText.slice(0, COLLAPSE_PREVIEW_LENGTH);
+    const lastSpace = cut.lastIndexOf(" ");
+    return `${cut.slice(0, lastSpace > 600 ? lastSpace : cut.length)}…`;
+  }, [fullText]);
+
+  const toggleButton = (expanded: boolean, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1 self-start rounded-full px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+      aria-label={expanded ? t("collapseMessage") : t("expandMessage")}
+      title={expanded ? t("collapseMessage") : t("expandMessage")}
+    >
+      {expanded ? (
+        <ChevronUpIcon className="h-3.5 w-3.5" />
+      ) : (
+        <ChevronDownIcon className="h-3.5 w-3.5" />
+      )}
+      {expanded ? t("collapseMessage") : t("expandMessage")}
+    </button>
+  );
 
   return (
     <div
@@ -178,8 +251,61 @@ const PurePreviewMessage = ({
         )}
       >
         <div className="flex flex-col w-full space-y-3">
-          {message.parts?.map((part, i) => {
-            if (part.type === "dynamic-tool") {
+          {isUserMessage && isEditing ? (
+            <form
+              onSubmit={handleSubmitEdit}
+              className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl"
+            >
+              <textarea
+                value={editDraft}
+                onChange={(e) => setEditDraft(e.target.value)}
+                autoFocus
+                rows={Math.min(8, Math.max(2, editDraft.split("\n").length))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                  if (e.key === "Escape") {
+                    handleCancelEdit();
+                  }
+                }}
+                className="w-full resize-y bg-transparent text-sm focus:outline-none"
+              />
+              <div className="flex justify-end gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="rounded-full p-2 text-muted-foreground hover:bg-foreground/5 transition-colors"
+                  aria-label={t("cancelEdit")}
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editDraft.trim()}
+                  className="rounded-full p-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed transition-colors"
+                  aria-label={t("sendEdit")}
+                >
+                  <CheckIcon className="h-4 w-4 text-primary-foreground" />
+                </button>
+              </div>
+            </form>
+          ) : isCollapsible && !isExpanded ? (
+            <div
+              key={`collapsed-${message.id}`}
+              className={cn("flex flex-col gap-3 w-full", {
+                "bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl":
+                  message.role === "user",
+              })}
+            >
+              <Markdown>{collapsedPreview}</Markdown>
+              {toggleButton(false, () => setIsExpanded(true))}
+            </div>
+          ) : (
+            <>
+              {message.parts?.map((part, i) => {
+              if (part.type === "dynamic-tool") {
               const dynamicToolPart = part as {
                 type: "dynamic-tool";
                 toolName: string;
@@ -279,13 +405,54 @@ const PurePreviewMessage = ({
                     isReasoning={part.state === "streaming"}
                   />
                 );
-              default:
-                return null;
-            }
-          })}
-          {shouldShowCopyButton && (
-            <div className="flex justify-start mt-2">
-              <CopyButton text={getMessageText()} />
+                default:
+                  return null;
+              }
+            })}
+              {isCollapsible && toggleButton(true, () => setIsExpanded(false))}
+            </>
+          )}
+          {showActions && (
+            <div
+              className={cn(
+                "flex items-center gap-1 mt-1",
+                isUserMessage ? "justify-end" : "justify-start"
+              )}
+            >
+              {shouldShowRegenerateButton && (
+                <button
+                  onClick={onRegenerate}
+                  className="opacity-0 group-hover/message:opacity-100 rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-all duration-150"
+                  aria-label={t("regenerate")}
+                  title={t("regenerate")}
+                >
+                  <RefreshCwIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                onClick={copyMessageText}
+                disabled={!getMessageText()}
+                className="opacity-0 group-hover/message:opacity-100 rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-all duration-150 disabled:opacity-0"
+                aria-label={t("copyToClipboard")}
+                title={t("copyToClipboard")}
+              >
+                {copied ? (
+                  <CheckIcon className="h-3.5 w-3.5 text-green-500" />
+                ) : (
+                  <CopyIcon className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {isUserMessage && (
+                <button
+                  onClick={handleStartEdit}
+                  disabled={status === "streaming" || status === "submitted"}
+                  className="opacity-0 group-hover/message:opacity-100 rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={t("editMessage")}
+                  title={t("editMessage")}
+                >
+                  <PencilIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
         </div>
