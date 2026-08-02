@@ -55,7 +55,10 @@
         "favorites": "Favoritos",
         "recentModels": "Recientes",
         "addFavorite": "Agregar a favoritos",
-        "removeFavorite": "Quitar de favoritos"
+        "removeFavorite": "Quitar de favoritos",
+        "visionModelSuggestion": "El modelo actual no soporta imágenes",
+        "switchToVisionModel": "Cambiar a {model}",
+        "noVisionModelAvailable": "Activa un modelo con visión en Ajustes de IA para adjuntar imágenes."
     },
     "chat": {
         "title": "MceChat AI",

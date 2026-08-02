@@ -1,9 +1,14 @@
 import { useTranslations } from "next-intl";
-import { modelID } from "@/ai/providers";
+import {
+  findVisionModel,
+  modelID,
+  modelSupportsVision,
+} from "@/ai/providers";
 import { Textarea as ShadcnTextarea } from "@/components/ui/textarea";
 import {
   ArrowUp,
   BookmarkPlus,
+  Image,
   Loader2,
   Paperclip,
   Sparkles,
@@ -12,6 +17,7 @@ import {
 } from "lucide-react";
 import { ModelPicker } from "./model-picker";
 import { ModelParams } from "./model-params";
+import { useAiProvider } from "@/lib/context/ai-provider-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { AI_PROMPT_PRESETS_KEY } from "@/lib/ai/types";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -66,13 +72,33 @@ export const Textarea = ({
 }: InputProps) => {
   const t = useTranslations("common");
   const tPresets = useTranslations("promptPresets");
+  const { customModels } = useAiProvider();
   const isStreaming = status === "streaming" || status === "submitted";
   const [presets, setPresets] = useLocalStorage<string[]>(
     AI_PROMPT_PRESETS_KEY,
     [],
   );
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [visionDismissed, setVisionDismissed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasImageAttachment = attachments.some((f) =>
+    f.type.startsWith("image/"),
+  );
+  const visionSuggestionId = findVisionModel(customModels);
+  const visionSuggestion = visionSuggestionId
+    ? customModels.find((m) => m.id === visionSuggestionId)
+    : undefined;
+  const showVisionSuggestion =
+    hasImageAttachment &&
+    !modelSupportsVision(selectedModel, customModels) &&
+    !visionDismissed;
+
+  useEffect(() => {
+    if (!hasImageAttachment) {
+      setVisionDismissed(false);
+    }
+  }, [hasImageAttachment]);
 
   const saveCurrentAsPreset = () => {
     const trimmed = input.trim();
@@ -101,6 +127,44 @@ export const Textarea = ({
 
   return (
     <div className="flex w-full flex-col rounded-2xl border border-input bg-background/50 dark:bg-muted/50 backdrop-blur-sm transition-[box-shadow] focus-within:ring-2 focus-within:ring-ring/30">
+      {showVisionSuggestion && (
+        <div className="px-3 pt-3">
+          <div className="flex min-w-0 items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs text-indigo-700 dark:text-indigo-300">
+            <Image className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              {t("visionModelSuggestion")}
+            </span>
+            {visionSuggestion ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 shrink-0 rounded-full border-indigo-500/30 px-2.5 text-[11px]"
+                onClick={() =>
+                  setSelectedModel(visionSuggestion.id as modelID)
+                }
+              >
+                {t("switchToVisionModel", {
+                  model: visionSuggestion.label,
+                })}
+              </Button>
+            ) : (
+              <span className="hidden shrink-0 text-[10px] opacity-80 sm:inline">
+                {t("noVisionModelAvailable")}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setVisionDismissed(true)}
+              className="shrink-0 rounded-full p-1 hover:bg-foreground/10 transition-colors"
+              aria-label={t("close")}
+              title={t("close")}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 px-3 pt-3">
           {attachments.map((file, i) =>

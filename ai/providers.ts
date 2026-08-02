@@ -74,6 +74,35 @@ export const MODELS = Object.keys(languageModels);
 
 export const defaultModel: modelID = "gpt-oss:20b";
 
+const VISION_MODEL_PATTERN =
+  /(vision|vl[0-9]|omni|multimodal|llava|gemini|gpt-4o|gpt-4\.1|gpt-4\.5|gpt-5|chatgpt-4o|claude-3|claude-4|phi-3-vision|qwen2-vl|qwen2\.5-vl|qwen3-vl|glm-4v|glm-4\.1v|pixtral|internvl|llama-3\.2|llama-4|minicpm|nougat|paligemma)/i;
+
+export function modelSupportsVision(
+  modelId: string,
+  customModels: CustomModelDef[] = []
+): boolean {
+  const parsed = parseCustomModelId(modelId);
+  if (parsed) {
+    return VISION_MODEL_PATTERN.test(
+      `${parsed.provider}/${parsed.providerModelId}`
+    );
+  }
+  const preset = modelDetails[modelId as PresetModelID];
+  if (preset) {
+    return preset.capabilities.some((c) => c.toLowerCase() === "vision");
+  }
+  return false;
+}
+
+export function findVisionModel(
+  customModels: CustomModelDef[] = []
+): modelID | null {
+  return (
+    customModels.find((m) => modelSupportsVision(m.id, customModels))?.id ??
+    null
+  );
+}
+
 function getEnvApiKey(providerKey: string): string | undefined {
   const envVar = LEGACY_API_KEYS[providerKey as KnownProviderKey];
   if (envVar && process.env[envVar]) {

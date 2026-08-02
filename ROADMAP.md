@@ -32,10 +32,11 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 - Nota: medir `performance.now()` alrededor del fetch del check; mostrar ms en la UI junto al indicador de estado.
 - **Auditoría previa:** el reconectar YA existía (`restartServer` + botón RefreshCw, línea 527). Solo faltaba latencia → se agregó: `latencyMs` en la respuesta de `/api/mcp-health`, campo `latencyMs` en `MCPServer`, guardado al conectar (`updateServerWithTools`) y mostrado junto a "Conectado" en el `StatusIndicator`.
 
-### 5. Auto-selección de modelo de visión · `S/M` · pendiente
+### 5. Auto-selección de modelo de visión · `S/M` · hecho
 **Feature #11.** Al agregar una imagen como adjunto, si el modelo activo no soporta visión (`vision`), ofrecer/buscar automáticamente un modelo con `vision === true` del proveedor activo y sugerirlo (o cambiar). La información `vision` ya la devuelve `app/api/ai/models/route.ts`.
 - Archivos: `components/chat.tsx` (al setear attachments), `components/model-picker.tsx`, `components/model-search-list.tsx`.
 - Nota: mejor sugerir que cambiar en silencio; confirmar con un toast o badge.
+- Implementado: helpers `modelSupportsVision`/`findVisionModel` en `ai/providers.ts` (regex de visión para custom models, capabilities para presets); banner inline en `components/textarea.tsx` cuando hay imagen adjunta y el modelo no soporta visión: botón "Cambiar a {model}" (primer custom model con visión) o aviso si no hay ninguno, con botón de descartar que se resetea al quitar las imágenes. i18n: `visionModelSuggestion`, `switchToVisionModel`, `noVisionModelAvailable`.
 
 ---
 
