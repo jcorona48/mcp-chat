@@ -4,13 +4,16 @@ import {
   MODELS,
   modelDetails,
   type modelID,
+  type ModelInfo,
   defaultModel,
+  type PresetModelID,
 } from "@/ai/providers";
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
@@ -27,22 +30,66 @@ import {
   Gauge,
   Rocket,
   Bot,
+  Star,
+  Cog,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useAiProvider } from "@/lib/context/ai-provider-context";
+import { useLocalStorage } from "@/lib/hooks/use-local-storage";
+import {
+  isCustomModelId,
+  parseCustomModelId,
+  providerDisplayName,
+} from "@/lib/ai/types";
 
 interface ModelPickerProps {
   selectedModel: modelID;
   setSelectedModel: (model: modelID) => void;
 }
 
+const MAX_RECENT_MODELS = 5;
+
 export const ModelPicker = ({
   selectedModel,
   setSelectedModel,
 }: ModelPickerProps) => {
   const t = useTranslations("common");
+  const { customModels } = useAiProvider();
   const [hoveredModel, setHoveredModel] = useState<modelID | null>(null);
+  const [favoriteModels, setFavoriteModels] = useLocalStorage<string[]>(
+    "favorite-models",
+    []
+  );
+  const [recentModels, setRecentModels] = useLocalStorage<string[]>(
+    "recent-models",
+    []
+  );
 
-  const validModelId = MODELS.includes(selectedModel)
+  const allModelIds = useMemo(() => {
+    const customIds = customModels.map((m) => m.id);
+    return [...MODELS, ...customIds.filter((id) => !MODELS.includes(id))];
+  }, [customModels]);
+
+  // Prune favorite/recent ids that no longer exist (e.g. removed custom models)
+  useEffect(() => {
+    const valid = new Set(allModelIds);
+    const prunedFavorites = favoriteModels.filter((id) => valid.has(id));
+    if (prunedFavorites.length !== favoriteModels.length) {
+      setFavoriteModels(prunedFavorites);
+    }
+    const prunedRecents = recentModels.filter((id) => valid.has(id));
+    if (prunedRecents.length !== recentModels.length) {
+      setRecentModels(prunedRecents);
+    }
+  }, [
+    allModelIds,
+    favoriteModels,
+    recentModels,
+    setFavoriteModels,
+    setRecentModels,
+  ]);
+
+  const validModelId = allModelIds.includes(selectedModel)
     ? selectedModel
     : defaultModel;
 
@@ -51,6 +98,28 @@ export const ModelPicker = ({
       setSelectedModel(validModelId as modelID);
     }
   }, [selectedModel, validModelId, setSelectedModel]);
+
+  const getModelInfo = (id: string): ModelInfo => {
+    const preset = modelDetails[id as PresetModelID];
+    if (preset) return preset;
+
+    const parsed = parseCustomModelId(id);
+    const def = customModels.find((m) => m.id === id);
+    if (parsed) {
+      return {
+        provider: providerDisplayName(parsed.provider),
+        providerKey: parsed.provider,
+        name: def?.label || parsed.providerModelId,
+        description:
+          def?.baseURL ? `${t("baseUrl")}: ${def.baseURL}` : "",
+        apiVersion: parsed.providerModelId,
+        providerModelId: parsed.providerModelId,
+        capabilities: ["Custom"],
+      };
+    }
+
+    return modelDetails[defaultModel as PresetModelID];
+  };
 
   const getProviderIcon = (provider: string) => {
     switch (provider.toLowerCase()) {
@@ -64,6 +133,8 @@ export const ModelPicker = ({
         return <Sparkles className="h-3 w-3 text-blue-500" />;
       case "xai":
         return <Sparkles className="h-3 w-3 text-yellow-500" />;
+      case "llm7":
+        return <Sparkles className="h-3 w-3 text-teal-500" />;
       default:
         return <Info className="h-3 w-3 text-blue-500" />;
     }
@@ -120,18 +191,112 @@ export const ModelPicker = ({
     }
   };
 
+  const toggleFavorite = (modelId: string) => {
+    setFavoriteModels((prev) =>
+      prev.includes(modelId)
+        ? prev.filter((id) => id !== modelId)
+        : [...prev, modelId]
+    );
+  };
+
+  const favoriteSet = useMemo(
+    () => new Set(favoriteModels),
+    [favoriteModels]
+  );
+  const recentSet = useMemo(() => new Set(recentModels), [recentModels]);
+  const favoriteIds = allModelIds.filter((id) => favoriteSet.has(id));
+  const recentIds = allModelIds.filter(
+    (id) => !favoriteSet.has(id) && recentSet.has(id)
+  );
+  const restIds = allModelIds.filter(
+    (id) => !favoriteSet.has(id) && !recentSet.has(id)
+  );
+  const hasFavorites = favoriteIds.length > 0;
+  const hasRecents = recentIds.length > 0;
+
   const displayModelId = hoveredModel || validModelId;
-  const currentModelDetails = modelDetails[displayModelId];
+  const currentModelDetails = getModelInfo(displayModelId);
+  const isCurrentFavorite = favoriteSet.has(displayModelId);
+
+  const renderModelRow = (id: string) => {
+    const info = getModelInfo(id);
+    const isCustom = isCustomModelId(id);
+    const isFavorite = favoriteSet.has(id);
+    return (
+      <SelectItem
+        key={id}
+        value={id}
+        onMouseEnter={() => setHoveredModel(id as modelID)}
+        onMouseLeave={() => setHoveredModel(null)}
+        className={cn(
+          "!px-2 sm:!px-3 py-1.5 sm:py-2 cursor-pointer rounded-md text-xs transition-colors duration-150 group/item",
+          "hover:bg-primary/5 hover:text-primary-foreground",
+          "focus:bg-primary/10 focus:text-primary focus:outline-none",
+          "data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary",
+          "min-w-0 *:[span]:last:min-w-0 *:[span]:last:flex-1",
+          validModelId === id &&
+            "!bg-primary/15 !text-primary font-medium"
+        )}
+      >
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            {getProviderIcon(info.provider)}
+            <span className="min-w-0 flex-1 font-medium truncate">
+              {info.name}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFavorite(id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseUp={(e) => e.stopPropagation()}
+              className={cn(
+                "shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full transition-colors",
+                isFavorite
+                  ? "text-amber-500 hover:text-amber-600"
+                  : "text-muted-foreground/50 opacity-0 group-hover/item:opacity-100 hover:text-amber-500 pointer-events-none group-hover/item:pointer-events-auto"
+              )}
+              title={isFavorite ? t("removeFavorite") : t("addFavorite")}
+              aria-label={isFavorite ? t("removeFavorite") : t("addFavorite")}
+            >
+              <Star className={cn("h-3 w-3", isFavorite && "fill-current")} />
+            </button>
+            {isCustom && (
+              <span
+                title={t("custom")}
+                className="ml-auto shrink-0 inline-flex items-center justify-center gap-0.5 h-4 w-4 rounded-full bg-primary/10 text-primary border border-primary/20"
+              >
+                <Cog className="h-2.5 w-2.5" />
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] sm:text-xs text-muted-foreground">
+            {info.provider}
+          </span>
+        </div>
+      </SelectItem>
+    );
+  };
 
   const handleModelChange = (modelId: string) => {
-    if (MODELS.includes(modelId)) {
-      const typedModelId = modelId as modelID;
-      setSelectedModel(typedModelId);
+    if (allModelIds.includes(modelId)) {
+      setSelectedModel(modelId as modelID);
+      setRecentModels((prev) =>
+        [modelId, ...prev.filter((id) => id !== modelId)].slice(
+          0,
+          MAX_RECENT_MODELS
+        )
+      );
     }
   };
 
   return (
-    <div className="absolute bottom-2 left-2 z-10">
+    <div className="relative z-10">
       <Select
         value={validModelId}
         onValueChange={handleModelChange}
@@ -143,9 +308,9 @@ export const ModelPicker = ({
             className="text-xs font-medium flex items-center gap-1 sm:gap-2 text-primary dark:text-primary-foreground"
           >
             <div className="flex items-center gap-1 sm:gap-2">
-              {getProviderIcon(modelDetails[validModelId].provider)}
+              {getProviderIcon(getModelInfo(validModelId).provider)}
               <span className="font-medium truncate">
-                {modelDetails[validModelId].name}
+                {getModelInfo(validModelId).name}
               </span>
             </div>
           </SelectValue>
@@ -154,50 +319,69 @@ export const ModelPicker = ({
           align="start"
           className="bg-background/95 dark:bg-muted/95 backdrop-blur-sm border-border/80 rounded-lg overflow-hidden p-0 w-[280px] sm:w-[350px] md:w-[515px]"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] md:grid-cols-[200px_1fr] items-start">
-            <div className="sm:border-r border-border/40 bg-muted/20 p-0 pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-[120px_minmax(0,1fr)] md:grid-cols-[200px_minmax(0,1fr)] items-start">
+            <div className="sm:border-r border-border/40 bg-muted/20 p-0 pr-1 max-h-[320px] overflow-y-auto min-w-0">
               <SelectGroup className="space-y-1">
-                {MODELS.map((id) => {
-                  const modelId = id as modelID;
-                  return (
-                    <SelectItem
-                      key={id}
-                      value={id}
-                      onMouseEnter={() => setHoveredModel(modelId)}
-                      onMouseLeave={() => setHoveredModel(null)}
-                      className={cn(
-                        "!px-2 sm:!px-3 py-1.5 sm:py-2 cursor-pointer rounded-md text-xs transition-colors duration-150",
-                        "hover:bg-primary/5 hover:text-primary-foreground",
-                        "focus:bg-primary/10 focus:text-primary focus:outline-none",
-                        "data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary",
-                        validModelId === id &&
-                          "!bg-primary/15 !text-primary font-medium"
-                      )}
-                    >
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          {getProviderIcon(modelDetails[modelId].provider)}
-                          <span className="font-medium truncate">
-                            {modelDetails[modelId].name}
-                          </span>
-                        </div>
-                        <span className="text-[10px] sm:text-xs text-muted-foreground">
-                          {modelDetails[modelId].provider}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
+                {hasFavorites && (
+                  <>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70 px-2 pt-2.5 pb-0">
+                      {t("favorites")}
+                    </SelectLabel>
+                    {favoriteIds.map(renderModelRow)}
+                  </>
+                )}
+                {hasRecents && (
+                  <>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70 px-2 pt-2.5 pb-0">
+                      {t("recentModels")}
+                    </SelectLabel>
+                    {recentIds.map(renderModelRow)}
+                  </>
+                )}
+                {restIds.map(renderModelRow)}
               </SelectGroup>
             </div>
 
-            <div className="sm:block hidden p-2 sm:p-3 md:p-4 flex-col">
+            <div className="sm:block hidden p-2 sm:p-3 md:p-4 flex-col min-w-0 h-[320px] overflow-y-auto no-scrollbar">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   {getProviderIcon(currentModelDetails.provider)}
-                  <h3 className="text-sm font-semibold">
+                  <h3 className="min-w-0 flex-1 text-sm font-semibold truncate">
                     {currentModelDetails.name}
                   </h3>
+                  <button
+                    type="button"
+                    onClick={() => toggleFavorite(displayModelId)}
+                    className={cn(
+                      "shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full transition-colors",
+                      isCurrentFavorite
+                        ? "text-amber-500 hover:text-amber-600"
+                        : "text-muted-foreground/50 hover:text-amber-500"
+                    )}
+                    title={
+                      isCurrentFavorite
+                        ? t("removeFavorite")
+                        : t("addFavorite")
+                    }
+                    aria-label={
+                      isCurrentFavorite
+                        ? t("removeFavorite")
+                        : t("addFavorite")
+                    }
+                  >
+                    <Star
+                      className={cn(
+                        "h-3.5 w-3.5",
+                        isCurrentFavorite && "fill-current"
+                      )}
+                    />
+                  </button>
+                  {isCustomModelId(displayModelId) && (
+                    <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      <Cog className="h-2.5 w-2.5" />
+                      {t("custom")}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground mb-1">
                   {t("provider")}:{" "}
@@ -227,9 +411,9 @@ export const ModelPicker = ({
               </div>
 
               <div className="bg-muted/40 rounded-md p-2 hidden md:block">
-                <div className="text-[10px] text-muted-foreground flex justify-between items-center">
+                <div className="text-[10px] text-muted-foreground flex justify-between items-center gap-2">
                   <span>{t("apiVersion")}:</span>
-                  <code className="bg-background/80 px-2 py-0.5 rounded text-[10px] font-mono">
+                  <code className="bg-background/80 px-2 py-0.5 rounded text-[10px] font-mono min-w-0 break-all">
                     {currentModelDetails.apiVersion}
                   </code>
                 </div>
