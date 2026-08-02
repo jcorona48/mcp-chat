@@ -209,7 +209,20 @@
         "dark": "Oscuro",
         "light": "Claro",
         "black": "Negro",
-        "sunset": "Atardecer"
+        "sunset": "Atardecer",
+        "accent": "Acento",
+        "accentGreen": "Verde",
+        "accentBlue": "Azul",
+        "accentViolet": "Violeta",
+        "accentPink": "Rosa",
+        "accentOrange": "Naranja",
+        "accentRed": "Rojo",
+        "palette": "Paleta de colores",
+        "paletteDescription": "Personaliza el color de acento de la interfaz. Se aplica a botones, selecciones y resaltados.",
+        "customColor": "Color personalizado",
+        "hue": "Matiz",
+        "reset": "Restablecer",
+        "done": "Listo"
     },
     "systemPrompt": {
         "title": "Instrucciones personalizadas",

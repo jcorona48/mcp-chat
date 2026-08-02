@@ -9,6 +9,7 @@ import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { STORAGE_KEYS } from "@/lib/constants";
 import { MCPProvider } from "@/lib/context/mcp-context";
 import { AiProviderProvider } from "@/lib/context/ai-provider-context";
+import { AccentProvider } from "@/components/accent-provider";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -37,10 +38,12 @@ export function Providers({ children }: { children: ReactNode }) {
       >
         <MCPProvider>
           <AiProviderProvider>
-            <SidebarProvider defaultOpen={sidebarOpen} open={sidebarOpen} onOpenChange={setSidebarOpen}>
-              {children}
-              <Toaster position="top-center" richColors />
-            </SidebarProvider>
+            <AccentProvider>
+              <SidebarProvider defaultOpen={sidebarOpen} open={sidebarOpen} onOpenChange={setSidebarOpen}>
+                {children}
+                <Toaster position="top-center" richColors />
+              </SidebarProvider>
+            </AccentProvider>
           </AiProviderProvider>
         </MCPProvider>
       </ThemeProvider>

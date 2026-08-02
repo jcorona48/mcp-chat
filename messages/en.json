@@ -206,7 +206,20 @@
         "dark": "Dark",
         "light": "Light",
         "black": "Black",
-        "sunset": "Sunset"
+        "sunset": "Sunset",
+        "accent": "Accent",
+        "accentGreen": "Green",
+        "accentBlue": "Blue",
+        "accentViolet": "Violet",
+        "accentPink": "Pink",
+        "accentOrange": "Orange",
+        "accentRed": "Red",
+        "palette": "Color palette",
+        "paletteDescription": "Customize the accent color of the interface. It applies to buttons, selections and highlights.",
+        "customColor": "Custom color",
+        "hue": "Hue",
+        "reset": "Reset",
+        "done": "Done"
     },
     "systemPrompt": {
         "title": "Custom instructions",

@@ -58,9 +58,10 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 - Archivos: `lib/ai/` (mapa de contextos), `components/chat.tsx` (barra bajo el header o sobre el textarea), `app/api/ai/models/route.ts`.
 - Nota: color ámbar >70%, rojo >90%; opcional botón "compactar" (resumen hasta aquí).
 
-### 10. Temas custom / acento · `M` · pendiente
+### 10. Temas custom / acento · `M` · hecho
 **Feature #30.** Selector de color primario (una paleta de ~6 acentos) que overridera las CSS variables de `app/globals.css` (ej. `--primary`, `--ring`). Persistir en `localStorage`. Requiere que los tokens de color estén definidos como variables — verificar estructura actual.
 - Archivos: `app/globals.css`, `components/theme-provider.tsx` (o nuevo `accent-provider.tsx`), `components/theme-toggle.tsx` (extender con menú de acento).
+- Implementado: `app/globals.css` usa `var(--accent-hue, <default>)` en `--primary`, `--ring`, `--chart-1`, `--sidebar-primary`, `--sidebar-ring`, `--accent`, `--sidebar-accent` (28 tokens); `components/accent-provider.tsx` (`useLocalStorage("accent-hue")` con hue como número + helpers `hueToHex`/`hexToHue`); `components/palette-dialog.tsx` con 6 acentos + `<input type="color">` + slider de matiz + reset; abierto desde `components/theme-toggle.tsx` (item "Paleta"); montado en `app/providers.tsx`. i18n: `accent`, `accent*`, `palette`, `paletteDescription`, `customColor`, `hue`, `reset`, `done`.
 
 ### 11. Backup de configuración · `M` · pendiente
 **Feature #24.** Exportar/importar un JSON con: proveedores custom, API keys (opcional, con advertencia), servidores MCP, system prompt global, favoritos/preferencias. Botón en settings (donde esté el api-key-manager o un nuevo diálogo de settings).
@@ -128,6 +129,22 @@ Incluir un toggle "Web search" por chat que agregue una herramienta de búsqueda
 - **Pegar imagen con Ctrl+V**: no estaba en la lista elegida por el usuario; los adjuntos por botón ya cubren el caso de uso.
 - **Búsqueda en conversación con scroll en vez de filtro**: Ctrl+F del navegador ya cubre el "encontrar y saltar". El filtro actual (solo muestra coincidencias) se mantiene. Opcional futuro: highlight de coincidencias + auto-scroll, pero no es prioridad.
 - **Copiar respuesta completa / código**: ya existen (botón copy en `components/message.tsx`, copy en bloques de código en `components/markdown.tsx`).
+
+---
+
+## Limitaciones conocidas
+
+### Adjuntos no persisten en el historial
+Al adjuntar archivos/imágenes y enviar, el adjunto se ve en el mensaje en vivo pero **desaparece al recargar/volver al chat**: los bytes nunca se suben ni se almacenan, solo viajan como `FilePart` (base64) en el stream en memoria, y la UI no renderiza partes de tipo archivo/imagen.
+- Dónde: `components/chat.tsx` (`handleSubmit` envía `files` al data stream), `lib/chat-store.ts` (persiste `parts` como JSON), `components/message.tsx` (solo renderiza `text` y `tool-*`, líneas 308-384).
+- El schema `MessagePart` (`lib/db/schema.ts:29`) tiene `type` libre, así que una parte `{ type: "file", mimeType, url }` encajaría sin migración.
+
+**Soluciones posibles (de menor a mayor costo):**
+1. **S/M — Metadatos + placeholder:** guardar `{ type: "file", mimeType, name, size }` (sin bytes) y renderizar en el historial un chip "📎 nombre" en `components/message.tsx`. La conversación queda fiel pero no permite re-ver el archivo; no requiere storage externo.
+2. **M/L — Subida a blob storage:** endpoint de upload (Vercel Blob / S3 / local), persistir la URL en la parte y renderizar el preview real al recargar. Solución completa; requiere storage + manejo de borrado/expiración.
+3. **L (descartada como default) — Data URL persistente:** guardar el base64 en `parts`. Funciona para imágenes pequeñas pero infla la BD y no escala.
+
+**Recomendación:** empezar por (1) para que el historial sea fiel, y evaluar (2) si se quiere re-ver los adjuntos. **Decisión del usuario pendiente.**
 
 ---
 
