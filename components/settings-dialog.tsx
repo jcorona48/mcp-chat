@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import {
+  Archive,
   ChevronRight,
   Key,
   ServerIcon,
@@ -27,6 +28,7 @@ export function SettingsDialog({
   onOpenAIProvider,
   onOpenSystemPrompt,
   onOpenImport,
+  onOpenBackup,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +36,7 @@ export function SettingsDialog({
   onOpenAIProvider: () => void;
   onOpenSystemPrompt: () => void;
   onOpenImport: () => void;
+  onOpenBackup: () => void;
 }) {
   const tUser = useTranslations("userMenu");
 
@@ -46,6 +49,7 @@ export function SettingsDialog({
     { key: "aiModels", icon: Key, onClick: onOpenAIProvider },
     { key: "systemPrompt", icon: Sparkles, onClick: onOpenSystemPrompt },
     { key: "importConversation", icon: Upload, onClick: onOpenImport },
+    { key: "configBackup", icon: Archive, onClick: onOpenBackup },
   ];
 
   return (

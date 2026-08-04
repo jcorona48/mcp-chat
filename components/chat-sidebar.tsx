@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { ExportChatDialog } from "./export-chat-dialog";
 import { ImportChatDialog } from "./import-chat-dialog";
 import { SettingsDialog } from "./settings-dialog";
+import { SettingsBackupDialog } from "./settings-backup-dialog";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -87,6 +88,7 @@ export function ChatSidebar() {
   const [exportChatId, setExportChatId] = useState<string | null>(null);
   const [importChatOpen, setImportChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [editUserIdOpen, setEditUserIdOpen] = useState(false);
@@ -748,7 +750,10 @@ export function ChatSidebar() {
           onOpenAIProvider={() => setAiProviderOpen(true)}
           onOpenSystemPrompt={() => setSystemPromptOpen(true)}
           onOpenImport={() => setImportChatOpen(true)}
+          onOpenBackup={() => setBackupOpen(true)}
         />
+
+        <SettingsBackupDialog open={backupOpen} onOpenChange={setBackupOpen} />
       </SidebarFooter>
 
       <Dialog

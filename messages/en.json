@@ -216,8 +216,23 @@
         "aiModels": "AI & Models",
         "systemPrompt": "Custom instructions",
         "importConversation": "Import conversation",
+        "configBackup": "Configuration backup",
         "theme": "Theme",
         "mcpServers": "MCP Servers"
+    },
+    "configBackup": {
+        "title": "Configuration backup",
+        "description": "Export or restore your settings: providers, MCP servers, custom instructions, and preferences.",
+        "exportSection": "Export",
+        "includeApiKeys": "Include API keys",
+        "includeApiKeysHint": "They will be saved in the file; this is sensitive information.",
+        "exportButton": "Download backup",
+        "exportSuccess": "Backup downloaded",
+        "importSection": "Import",
+        "importWarning": "Importing will replace your current settings and reload the page.",
+        "importButton": "Select file",
+        "importSuccess": "Configuration imported",
+        "importError": "The file is not a valid backup"
     },
     "theme": {
         "dark": "Dark",

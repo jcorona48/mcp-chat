@@ -220,8 +220,23 @@
         "aiModels": "IA y modelos",
         "systemPrompt": "Instrucciones personalizadas",
         "importConversation": "Importar conversación",
+        "configBackup": "Backup de configuración",
         "theme": "Tema",
         "mcpServers": "Servidores MCP"
+    },
+    "configBackup": {
+        "title": "Backup de configuración",
+        "description": "Exporta o restaura tus ajustes: proveedores, servidores MCP, instrucciones personalizadas y preferencias.",
+        "exportSection": "Exportar",
+        "includeApiKeys": "Incluir claves API",
+        "includeApiKeysHint": "Se guardarán en el archivo; es información sensible.",
+        "exportButton": "Descargar backup",
+        "exportSuccess": "Backup descargado",
+        "importSection": "Importar",
+        "importWarning": "Importar reemplazará tus ajustes actuales y recargará la página.",
+        "importButton": "Seleccionar archivo",
+        "importSuccess": "Configuración importada",
+        "importError": "El archivo no es un backup válido"
     },
     "theme": {
         "dark": "Oscuro",

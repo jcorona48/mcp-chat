@@ -64,10 +64,11 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 - Archivos: `app/globals.css`, `components/theme-provider.tsx` (o nuevo `accent-provider.tsx`), `components/theme-toggle.tsx` (extender con menú de acento).
 - Implementado: `app/globals.css` usa `var(--accent-hue, <default>)` en `--primary`, `--ring`, `--chart-1`, `--sidebar-primary`, `--sidebar-ring`, `--accent`, `--sidebar-accent` (28 tokens); `components/accent-provider.tsx` (`useLocalStorage("accent-hue")` con hue como número + helpers `hueToHex`/`hexToHue`); `components/palette-dialog.tsx` con 6 acentos + `<input type="color">` + slider de matiz + reset; abierto desde `components/theme-toggle.tsx` (item "Paleta"); montado en `app/providers.tsx`. i18n: `accent`, `accent*`, `palette`, `paletteDescription`, `customColor`, `hue`, `reset`, `done`.
 
-### 11. Backup de configuración · `M` · pendiente
+### 11. Backup de configuración · `M` · hecho
 **Feature #24.** Exportar/importar un JSON con: proveedores custom, API keys (opcional, con advertencia), servidores MCP, system prompt global, favoritos/preferencias. Botón en settings (donde esté el api-key-manager o un nuevo diálogo de settings).
 - Archivos: nuevo `components/settings-backup-dialog.tsx` (o dentro de un manager existente), `lib/`.
 - i18n: `exportConfig`, `importConfig`, `backupDescription`, `importWarning` (es/en).
+- Implementado: `lib/config-backup.ts` (schema versionado, `buildConfigBackup({includeApiKeys})`, `parseConfigBackup` con validación, `applyConfigBackup` que escribe en localStorage y recarga); `components/settings-backup-dialog.tsx` (export con checkbox "Incluir claves API", import con advertencia y reload); fila "Backup de configuración" en `components/settings-dialog.tsx`. Cubre: api keys, custom models, system prompt, prompt presets, servidores MCP + selección, acento, favoritos/recientes y modelo seleccionado. i18n: `configBackup.*`, `userMenu.configBackup`.
 
 ### 12. Importar conversación · `M` · hecho
 **Feature #23.** Restaurar una conversación desde el JSON exportado (`exportJson` ya genera ese formato). Leer archivo → parsear → recrear el chat (insert en DB y estado).
