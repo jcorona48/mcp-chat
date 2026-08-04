@@ -17,6 +17,7 @@ export interface ConfigBackup {
   systemPrompt?: string;
   mcpServers?: MCPServer[];
   selectedMcpServers?: string[];
+  disabledTools?: string[];
   promptPresets?: string[];
   favoriteModels?: string[];
   recentModels?: string[];
@@ -31,6 +32,7 @@ const STORAGE_KEYS = {
   promptPresets: AI_PROMPT_PRESETS_KEY,
   mcpServers: "mcp-servers",
   selectedMcpServers: "selected-mcp-servers",
+  disabledTools: "disabled-tools",
   accentHue: "accent-hue",
   favoriteModels: "favorite-models",
   recentModels: "recent-models",

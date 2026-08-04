@@ -234,6 +234,16 @@
         "importSuccess": "Configuration imported",
         "importError": "The file is not a valid backup"
     },
+    "toolPicker": {
+        "title": "Tools",
+        "activeCount": "{active} of {total} active",
+        "activateAll": "Enable all",
+        "expandAll": "Expand",
+        "collapseAll": "Collapse",
+        "noTools": "Connect an MCP server to see tools",
+        "searchPlaceholder": "Search tools...",
+        "tooltip": "Available tools"
+    },
     "theme": {
         "dark": "Dark",
         "light": "Light",

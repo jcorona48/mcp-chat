@@ -96,7 +96,7 @@ export default function Chat() {
     };
 
     // Get MCP server data from context
-    const { mcpServersForApi } = useMCP();
+    const { mcpServersForApi, disabledTools } = useMCP();
 
     // Get AI provider credentials and custom models from context
     const { apiKeys, customModels } = useAiProvider();
@@ -169,6 +169,7 @@ export default function Chat() {
     const transportConfigRef = useRef({
         selectedModel,
         mcpServers: mcpServersForApi,
+        disabledTools,
         chatId: activeChatId,
         userId,
         apiKeys,
@@ -181,6 +182,7 @@ export default function Chat() {
     transportConfigRef.current = {
         selectedModel,
         mcpServers: mcpServersForApi,
+        disabledTools,
         chatId: activeChatId,
         userId,
         apiKeys,
@@ -234,6 +236,7 @@ export default function Chat() {
                     body: {
                         selectedModel: config.selectedModel,
                         mcpServers: config.mcpServers,
+                        disabledTools: config.disabledTools,
                         chatId: config.chatId,
                         userId: config.userId,
                         apiKeys: config.apiKeys,

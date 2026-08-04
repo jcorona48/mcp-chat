@@ -62,6 +62,20 @@ function getFastChatTitle(userMessage?: UIMessage): string {
     return text.length > 60 ? `${text.slice(0, 60)}...` : text;
 }
 
+function expandDisabledToolNames(disabledTools: string[]): Set<string> {
+  const expanded = new Set<string>();
+  for (const name of disabledTools) {
+    expanded.add(name);
+    if (name.includes("-")) {
+      expanded.add(name.replace(/-/g, "_"));
+    }
+    if (name.includes("_")) {
+      expanded.add(name.replace(/_/g, "-"));
+    }
+  }
+  return expanded;
+}
+
 function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
     const controller = new AbortController();
 
@@ -180,6 +194,7 @@ export async function POST(req: Request) {
         selectedModel,
         userId,
         mcpServers = [],
+        disabledTools = [],
         apiKeys = {},
         customModels = [],
         systemPrompt = "",
@@ -191,6 +206,7 @@ export async function POST(req: Request) {
         selectedModel: modelID;
         userId: string;
         mcpServers?: MCPServerConfig[];
+        disabledTools?: string[];
         apiKeys?: Record<string, string | undefined>;
         customModels?: {
             id: string;
@@ -316,7 +332,13 @@ export async function POST(req: Request) {
             combinedSignal,
             MCP_INIT_TIMEOUT_MS,
         );
-        const hasTools = Object.keys(tools).length > 0;
+        const disabledToolSet = expandDisabledToolNames(disabledTools);
+        const enabledTools = Object.fromEntries(
+            Object.entries(tools).filter(
+                ([name]) => !disabledToolSet.has(name),
+            ),
+        );
+        const hasTools = Object.keys(enabledTools).length > 0;
         const modelDecision = decideExecutionModel({
             userId,
             chatId: id,
@@ -331,13 +353,14 @@ export async function POST(req: Request) {
             customModels,
         });
         const instrumentedTools = withToolExecutionMetrics(
-            { ...tools, ...createAiConfigTools(mcpServers) },
+            { ...enabledTools, ...createAiConfigTools(mcpServers) },
             trace,
         );
 
         trace("mcp_init_finished", {
             mcpInitMs: Date.now() - mcpInitStartedAt,
             discoveredToolCount: Object.keys(tools).length,
+            disabledToolCount: disabledTools.length,
             selectedModel,
             executionModel,
             modelAutoSwitched,

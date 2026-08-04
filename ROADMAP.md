@@ -68,7 +68,8 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 **Feature #24.** Exportar/importar un JSON con: proveedores custom, API keys (opcional, con advertencia), servidores MCP, system prompt global, favoritos/preferencias. Botón en settings (donde esté el api-key-manager o un nuevo diálogo de settings).
 - Archivos: nuevo `components/settings-backup-dialog.tsx` (o dentro de un manager existente), `lib/`.
 - i18n: `exportConfig`, `importConfig`, `backupDescription`, `importWarning` (es/en).
-- Implementado: `lib/config-backup.ts` (schema versionado, `buildConfigBackup({includeApiKeys})`, `parseConfigBackup` con validación, `applyConfigBackup` que escribe en localStorage y recarga); `components/settings-backup-dialog.tsx` (export con checkbox "Incluir claves API", import con advertencia y reload); fila "Backup de configuración" en `components/settings-dialog.tsx`. Cubre: api keys, custom models, system prompt, prompt presets, servidores MCP + selección, acento, favoritos/recientes y modelo seleccionado. i18n: `configBackup.*`, `userMenu.configBackup`.
+- Implementado: `lib/config-backup.ts` (schema versionado, `buildConfigBackup({includeApiKeys})`, `parseConfigBackup` con validación, `applyConfigBackup` que escribe en localStorage y recarga); `components/settings-backup-dialog.tsx` (export con checkbox "Incluir claves API", import con advertencia y reload); fila "Backup de configuración" en `components/settings-dialog.tsx`. Cubre: api keys, custom models, system prompt, prompt presets, servidores MCP + selección, tools desactivadas (`disabled-tools`), acento, favoritos/recientes y modelo seleccionado. i18n: `configBackup.*`, `userMenu.configBackup`.
+- **Recordatorio**: cualquier nueva opción de configuración persistida (nueva key de localStorage) debe añadirse al backup en `lib/config-backup.ts` (`STORAGE_KEYS` + campo en `ConfigBackup`).
 
 ### 12. Importar conversación · `M` · hecho
 **Feature #23.** Restaurar una conversación desde el JSON exportado (`exportJson` ya genera ese formato). Leer archivo → parsear → recrear el chat (insert en DB y estado).
@@ -99,7 +100,7 @@ Incluir un toggle "Web search" por chat que agregue una herramienta de búsqueda
 
 ## Fase 4 — Grande
 
-### 16. Selección de tools (global) · `L` · documentado, no implementado
+### 16. Selección de tools (global) · `L` · hecho
 **Feature #15 (redefinida).** El usuario confirmó que **la configuración global de servidores MCP ya resuelve bien**; la feature no necesita ser "por chat". Se redefine como: **encender/apagar tools individuales, con alcance global**.
 - Estado: documentada y diseñada, pero **pospuesta** por priorizar features fáciles.
 
@@ -123,7 +124,8 @@ Incluir un toggle "Web search" por chat que agregue una herramienta de búsqueda
 - `components/chat.tsx`: incluir `disabledTools` en `transportConfigRef` → body.
 - `app/api/chat/route.ts`: aceptar `disabledTools?: string[]` y filtrar del toolset MCP tras `initializeMCPClients` (mantener siempre las AI-config tools, p.ej. `addMcpServer`); `hasTools` debe reflejar el toolset filtrado.
 - i18n (es/en): `tools`, `activateAll`, `noTools`, `connectedServers`, tooltips.
-- Nota: si dos servidores exponen una tool con el mismo nombre, el filtro por nombre afecta a ambas (trade-off aceptado).
+- Nota: si dos servidores exponen una tool con el mismo nombre, el filtro por nombre afecta a ambas (trade-off aceptado). Al desactivar una tool, el filtro del route elimina también sus variantes alias (`-`↔`_`, ver `createToolNameAliases` en `lib/mcp-client.ts`), ya que esas claves alternativas quedarían invocables de otro modo.
+- Implementado: `lib/context/mcp-context.tsx` (estado `disabledTools` en localStorage key `disabled-tools`, `activeTools` = tools de servidores seleccionados ∩ conectados agrupadas por servidor, prune de ids huérfanos); `components/tool-picker.tsx` (popover con contador activas/total, reset "Activar todas", búsqueda si >12 tools, checkbox maestro por servidor y filas por tool); `components/textarea.tsx` (botón `Wrench` antes de `ModelParams`, punto en `text-primary` si hay desactivadas); `components/chat.tsx` (envía `disabledTools` en el body); `app/api/chat/route.ts` (filtra el toolset MCP tras `initializeMCPClients`, `hasTools` refleja el set filtrado, AI-config tools siempre presentes). i18n: `toolPicker.*`.
 
 ---
 

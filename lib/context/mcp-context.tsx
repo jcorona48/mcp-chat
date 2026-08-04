@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 
 export interface KeyValuePair {
@@ -18,6 +18,7 @@ export type ServerStatus =
 const STORAGE_KEYS = {
   MCP_SERVERS: "mcp-servers",
   SELECTED_MCP_SERVERS: "selected-mcp-servers",
+  DISABLED_TOOLS: "disabled-tools",
 } as const;
 
 export interface MCPTool {
@@ -48,11 +49,20 @@ export interface MCPServerApi {
   headers?: KeyValuePair[];
 }
 
+export interface ActiveToolGroup {
+  serverId: string;
+  serverName: string;
+  tools: MCPTool[];
+}
+
 interface MCPContextType {
   mcpServers: MCPServer[];
   setMcpServers: (servers: MCPServer[]) => void;
   selectedMcpServers: string[];
   setSelectedMcpServers: (serverIds: string[]) => void;
+  disabledTools: string[];
+  setDisabledTools: (toolNames: string[]) => void;
+  activeTools: ActiveToolGroup[];
   mcpServersForApi: MCPServerApi[];
   startServer: (serverId: string, serverOverride?: MCPServer) => Promise<boolean>;
   stopServer: (serverId: string) => Promise<boolean>;
@@ -99,6 +109,11 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
 
   const [selectedMcpServers, setSelectedMcpServers] = useLocalStorage<string[]>(
     STORAGE_KEYS.SELECTED_MCP_SERVERS,
+    []
+  );
+
+  const [disabledTools, setDisabledTools] = useLocalStorage<string[]>(
+    STORAGE_KEYS.DISABLED_TOOLS,
     []
   );
 
@@ -246,6 +261,37 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mcpServers, selectedMcpServers, setSelectedMcpServers]);
 
+  // Tools of selected & connected servers, grouped by server
+  const activeTools = useMemo<ActiveToolGroup[]>(
+    () =>
+      selectedMcpServers
+        .map((id) => mcpServers.find((s) => s.id === id))
+        .filter(
+          (server): server is MCPServer =>
+            !!server &&
+            server.status === "connected" &&
+            !!server.tools &&
+            server.tools.length > 0
+        )
+        .map((server) => ({
+          serverId: server.id,
+          serverName: server.name,
+          tools: server.tools ?? [],
+        })),
+    [selectedMcpServers, mcpServers]
+  );
+
+  // Prune disabled tool ids that no longer exist in the active toolset
+  useEffect(() => {
+    const validIds = new Set(
+      activeTools.flatMap((group) => group.tools.map((t) => t.name))
+    );
+    const pruned = disabledTools.filter((id) => validIds.has(id));
+    if (pruned.length !== disabledTools.length) {
+      setDisabledTools(pruned);
+    }
+  }, [activeTools, disabledTools, setDisabledTools]);
+
   // Calculate mcpServersForApi based on current state
   const mcpServersForApi = getActiveServersForApi();
 
@@ -256,6 +302,9 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
         setMcpServers,
         selectedMcpServers,
         setSelectedMcpServers,
+        disabledTools,
+        setDisabledTools,
+        activeTools,
         mcpServersForApi,
         startServer,
         stopServer,

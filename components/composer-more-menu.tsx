@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Tags,
+  Wrench,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
 import { ModelParamsControls } from "./model-params";
 import { PromptPresetsMenu } from "./prompt-presets-menu";
 import { TokenBreakdown, type UsageMessage } from "./token-badge";
+import { ToolPickerContent } from "./tool-picker";
 import { type TokenUsage } from "@/lib/chat/usage";
 import { cn } from "@/lib/utils";
 
@@ -76,10 +78,12 @@ export function ComposerMoreMenu({
   const tPresets = useTranslations("promptPresets");
   const tModelParams = useTranslations("modelParams");
   const tChat = useTranslations("chat");
+  const tTools = useTranslations("toolPicker");
 
   const [paramsOpen, setParamsOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [tokensOpen, setTokensOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   return (
     <div className="sm:hidden">
@@ -125,6 +129,11 @@ export function ComposerMoreMenu({
             {tPresets("title")}
             <ChevronRight className="ml-auto size-4 text-muted-foreground/50" />
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setToolsOpen(true)}>
+            <Wrench />
+            {tTools("title")}
+            <ChevronRight className="ml-auto size-4 text-muted-foreground/50" />
+          </DropdownMenuItem>
           {usage && usage.totalTokens > 0 && (
             <>
               <DropdownMenuSeparator />
@@ -137,6 +146,17 @@ export function ComposerMoreMenu({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={toolsOpen} onOpenChange={setToolsOpen}>
+        <DialogContent className="sm:max-w-[480px] flex flex-col max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>{tTools("title")}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
+            <ToolPickerContent />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {onTemperatureChange && onMaxTokensChange && (
         <Dialog open={paramsOpen} onOpenChange={setParamsOpen}>

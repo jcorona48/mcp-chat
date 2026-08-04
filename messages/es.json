@@ -238,6 +238,16 @@
         "importSuccess": "Configuración importada",
         "importError": "El archivo no es un backup válido"
     },
+    "toolPicker": {
+        "title": "Herramientas",
+        "activeCount": "{active} de {total} activas",
+        "activateAll": "Activar todas",
+        "expandAll": "Expandir",
+        "collapseAll": "Colapsar",
+        "noTools": "Conecta un servidor MCP para ver herramientas",
+        "searchPlaceholder": "Buscar herramientas...",
+        "tooltip": "Herramientas disponibles"
+    },
     "theme": {
         "dark": "Oscuro",
         "light": "Claro",

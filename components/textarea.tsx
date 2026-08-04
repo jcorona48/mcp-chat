@@ -19,6 +19,7 @@ import { FileChip } from "./file-chip";
 import { ModelParams } from "./model-params";
 import { ComposerMoreMenu } from "./composer-more-menu";
 import { PromptPresetsMenu } from "./prompt-presets-menu";
+import { ToolPicker } from "./tool-picker";
 import { type UsageMessage } from "./token-badge";
 import { useAiProvider } from "@/lib/context/ai-provider-context";
 import {
@@ -276,6 +277,9 @@ export const Textarea = ({
         )}
         <div className="flex-1" />
         {tokenBadge}
+        <div className="hidden sm:block">
+          <ToolPicker />
+        </div>
         <div className="hidden sm:block">
           {onTemperatureChange && onMaxTokensChange && (
             <ModelParams
