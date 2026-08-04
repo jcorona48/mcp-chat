@@ -4,6 +4,7 @@ import type { UIMessage as TMessage } from "ai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Markdown } from "./markdown";
+import { FileChip } from "./file-chip";
 import { cn } from "@/lib/utils";
 import {
   CheckIcon,
@@ -382,6 +383,12 @@ const PurePreviewMessage = ({
 
             switch (part.type) {
               case "text":
+                if (
+                  typeof part.text !== "string" ||
+                  part.text.trim().length === 0
+                ) {
+                  return null;
+                }
                 return (
                   <div
                     key={`message-${message.id}-part-${i}`}
@@ -405,6 +412,26 @@ const PurePreviewMessage = ({
                     isReasoning={part.state === "streaming"}
                   />
                 );
+              case "file": {
+                const filePart = part as {
+                  type: string;
+                  filename?: string;
+                  mediaType?: string;
+                  url?: string;
+                };
+                return (
+                  <div
+                    key={`message-${message.id}-part-${i}`}
+                    className="flex flex-row gap-2 items-start w-full"
+                  >
+                    <FileChip
+                      filename={filePart.filename}
+                      fallbackLabel={t("attachment")}
+                      isUserMessage={isUserMessage}
+                    />
+                  </div>
+                );
+              }
                 default:
                   return null;
               }

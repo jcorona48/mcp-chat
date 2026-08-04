@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { ModelPicker } from "./model-picker";
+import { FileChip } from "./file-chip";
 import { ModelParams } from "./model-params";
 import { ComposerMoreMenu } from "./composer-more-menu";
 import { PromptPresetsMenu } from "./prompt-presets-menu";
@@ -208,22 +209,14 @@ export const Textarea = ({
                 </button>
               </div>
             ) : (
-              <div
+              <FileChip
                 key={`${file.name}-${i}`}
-                className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs max-w-40"
-              >
-                <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate flex-1">{file.name}</span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveAttachment?.(i)}
-                  className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={t("removeAttachment")}
-                  title={t("removeAttachment")}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
+                filename={file.name}
+                fallbackLabel={file.name}
+                onRemove={() => onRemoveAttachment?.(i)}
+                removeLabel={t("removeAttachment")}
+                className="max-w-40 rounded-lg"
+              />
             ),
           )}
         </div>

@@ -21,12 +21,13 @@ import { useModelExecutionInfo } from "@/lib/hooks/use-model-execution-info";
 import { ModelExecutionNotice } from "@/components/model-execution-notice";
 import { useAutoModelRetry } from "@/lib/hooks/use-auto-model-retry";
 import { DefaultChatTransport } from "ai";
-import { fetchWithErrorHandlers } from "@/lib/utils";
+import { fetchWithErrorHandlers, cn } from "@/lib/utils";
+import { isEffectivelyEmptyMessage } from "@/lib/chat/message-utils";
 import { useDataStream } from "@/providers/data-stream-provider";
 import { ChatMessage } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Search, X } from "lucide-react";
+import { Search, X, Eye, EyeOff } from "lucide-react";
 import { getChatUsage } from "@/lib/chat/usage";
 import { TokenBadge } from "./token-badge";
 import { SystemPromptDialog } from "./system-prompt-dialog";
@@ -70,6 +71,10 @@ export default function Chat() {
     const [input, setInput] = useState("");
     const [attachments, setAttachments] = useState<File[]>([]);
     const [conversationSearch, setConversationSearch] = useState("");
+    const [hideEmptyMessages, setHideEmptyMessages] = useLocalStorage(
+        "hide-empty-messages",
+        true,
+    );
     const [temperature, setTemperature] = useState<number | null>(null);
     const [maxTokens, setMaxTokens] = useState<number | null>(null);
     const [systemPromptOpen, setSystemPromptOpen] = useState(false);
@@ -369,16 +374,25 @@ export default function Chat() {
     const tChat = useTranslations("chat");
 
     const filteredMessages = useMemo(() => {
+        let result = messages;
+
+        if (hideEmptyMessages && !isLoading) {
+            result = result.filter((m) => !isEffectivelyEmptyMessage(m));
+        }
+
         const query = conversationSearch.trim().toLowerCase();
-        if (!query) return messages;
-        return messages.filter((m) =>
-            m.parts.some(
-                (p) =>
-                    p.type === "text" &&
-                    p.text.toLowerCase().includes(query),
-            ),
-        );
-    }, [messages, conversationSearch]);
+        if (query) {
+            result = result.filter((m) =>
+                m.parts.some(
+                    (p) =>
+                        p.type === "text" &&
+                        p.text.toLowerCase().includes(query),
+                ),
+            );
+        }
+
+        return result;
+    }, [messages, conversationSearch, hideEmptyMessages, isLoading]);
 
     const chatUsage = useMemo(() => getChatUsage(messages), [messages]);
 
@@ -415,38 +429,59 @@ export default function Chat() {
                 </div>
             ) : (
                 <>
-                    <div className="flex items-center justify-center mb-2">
+                    <div className="flex items-center justify-center gap-2 mb-2">
                         {messages.length > 0 && (
-                            <div className="relative w-full max-w-md">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                                <input
-                                    type="text"
-                                    value={conversationSearch}
-                                    onChange={(e) =>
-                                        setConversationSearch(e.target.value)
+                            <>
+                                <div className="relative w-full max-w-md">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                                    <input
+                                        type="text"
+                                        value={conversationSearch}
+                                        onChange={(e) =>
+                                            setConversationSearch(e.target.value)
+                                        }
+                                        placeholder={tChat("searchConversation")}
+                                        className="w-full rounded-full border border-border/60 bg-background/50 py-1.5 pl-9 pr-14 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                                    />
+                                    {conversationSearch.trim() && (
+                                        <>
+                                            <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/70">
+                                                {filteredMessages.length}/
+                                                {messages.length}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setConversationSearch("")
+                                                }
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground/70 hover:text-foreground hover:bg-foreground/5"
+                                                title={tChat("clearSearch")}
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setHideEmptyMessages((v) => !v)
                                     }
-                                    placeholder={tChat("searchConversation")}
-                                    className="w-full rounded-full border border-border/60 bg-background/50 py-1.5 pl-9 pr-14 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
-                                />
-                                {conversationSearch.trim() && (
-                                    <>
-                                        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/70">
-                                            {filteredMessages.length}/
-                                            {messages.length}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setConversationSearch("")
-                                            }
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground/70 hover:text-foreground hover:bg-foreground/5"
-                                            title={tChat("clearSearch")}
-                                        >
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
+                                    aria-pressed={hideEmptyMessages}
+                                    aria-label={tChat("hideEmptyMessages")}
+                                    title={tChat("hideEmptyMessages")}
+                                    className={cn(
+                                        "shrink-0 rounded-full p-1.5 text-muted-foreground/70 hover:text-foreground hover:bg-foreground/5 transition-colors",
+                                        hideEmptyMessages && "text-primary",
+                                    )}
+                                >
+                                    {hideEmptyMessages ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                </button>
+                            </>
                         )}
                     </div>
                     <div className="flex-1 overflow-y-auto min-h-0 pb-2">

@@ -10,6 +10,10 @@ import {
   getDetailedErrorMessage,
   getErrorMessageText,
 } from "@/lib/chat/error-utils";
+import {
+  sanitizePartsForStorage,
+  stripDataLessFileParts,
+} from "@/lib/chat/message-utils";
 import { decideExecutionModel } from "@/lib/chat/model-execution-policy";
 import { db } from "@/lib/db";
 import { chats, MessagePart } from "@/lib/db/schema";
@@ -285,9 +289,11 @@ export async function POST(req: Request) {
             id: userMessage?.id ?? nanoid(),
             chatId: id,
             role: userMessage?.role ?? "user",
-            parts: (userMessage?.parts as MessagePart[]) ?? [
-                { type: "text", text: "" },
-            ],
+            parts: sanitizePartsForStorage(
+                (userMessage?.parts as MessagePart[]) ?? [
+                    { type: "text", text: "" },
+                ],
+            ),
             createdAt: new Date(),
         });
 
@@ -347,7 +353,9 @@ export async function POST(req: Request) {
         } | null = null;
         trace("stream_setup_started", { maxSteps: 20 });
 
-        const modelMessages = await convertToModelMessages(messages);
+        const modelMessages = stripDataLessFileParts(
+            await convertToModelMessages(messages),
+        );
 
         const activeServersContext =
             mcpServers.length > 0
