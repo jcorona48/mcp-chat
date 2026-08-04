@@ -57,6 +57,7 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 **Feature #8.** Mostrar % del context window consumido (tokens del chat / contexto del modelo). Requiere mapa `modelId → contextLength` (OpenRouter ya lo devuelve en `/models` como `context_length`; para los demás proveedores, mapa manual de tamaños conocidos con fallback). El conteo de tokens ya está implementado (#8).
 - Archivos: `lib/ai/` (mapa de contextos), `components/chat.tsx` (barra bajo el header o sobre el textarea), `app/api/ai/models/route.ts`.
 - Nota: color ámbar >70%, rojo >90%; opcional botón "compactar" (resumen hasta aquí). Reutilizar `getChatUsage` de `lib/chat/usage.ts`.
+- **Descartada por ahora (usuario):** los modelos se cargan dinámicos vía HTTP y la mayoría de proveedores no exponen el contexto; depender de un mapa manual de tamaños = adivinar. Solo tendría sentido si el provider lo reportara de forma fiable.
 
 ### 10. Temas custom / acento · `M` · hecho
 **Feature #30.** Selector de color primario (una paleta de ~6 acentos) que overridera las CSS variables de `app/globals.css` (ej. `--primary`, `--ring`). Persistir en `localStorage`. Requiere que los tokens de color estén definidos como variables — verificar estructura actual.
@@ -68,10 +69,11 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 - Archivos: nuevo `components/settings-backup-dialog.tsx` (o dentro de un manager existente), `lib/`.
 - i18n: `exportConfig`, `importConfig`, `backupDescription`, `importWarning` (es/en).
 
-### 12. Importar conversación · `M` · pendiente
+### 12. Importar conversación · `M` · hecho
 **Feature #23.** Restaurar una conversación desde el JSON exportado (`exportJson` ya genera ese formato). Leer archivo → parsear → recrear el chat (insert en DB y estado).
 - Archivos: `components/export-chat-dialog.tsx` (añadir tab Import), `app/api/chats/route.ts` (endpoint o reutilizar create), `components/chat-sidebar.tsx` (acción importar).
 - Nota: el MD exportado no se puede importar fielmente; solo JSON.
+- Implementado: `app/api/chats/import/route.ts` (POST valida `{ messages }`, reutiliza `saveChat` → título, `convertToDBMessage` y `sanitizePartsForStorage`; preserva `createdAt`); `components/import-chat-dialog.tsx` (selector de archivo JSON, acepta array suelto o `{ messages }`, navega a `/chat/{id}`); entrada en el menú de usuario del sidebar (`Importar conversación`) con `refreshChats` tras importar. i18n: `chat.import*`, `userMenu.importConversation`.
 
 ---
 

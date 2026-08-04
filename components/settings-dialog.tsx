@@ -6,6 +6,7 @@ import {
   Key,
   ServerIcon,
   Sparkles,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -25,12 +26,14 @@ export function SettingsDialog({
   onOpenMCP,
   onOpenAIProvider,
   onOpenSystemPrompt,
+  onOpenImport,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenMCP: () => void;
   onOpenAIProvider: () => void;
   onOpenSystemPrompt: () => void;
+  onOpenImport: () => void;
 }) {
   const tUser = useTranslations("userMenu");
 
@@ -42,6 +45,7 @@ export function SettingsDialog({
     { key: "mcpSettings", icon: ServerIcon, onClick: onOpenMCP },
     { key: "aiModels", icon: Key, onClick: onOpenAIProvider },
     { key: "systemPrompt", icon: Sparkles, onClick: onOpenSystemPrompt },
+    { key: "importConversation", icon: Upload, onClick: onOpenImport },
   ];
 
   return (

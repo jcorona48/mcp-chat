@@ -45,6 +45,7 @@ import { useChats } from "@/lib/hooks/use-chats";
 import { type Chat } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { ExportChatDialog } from "./export-chat-dialog";
+import { ImportChatDialog } from "./import-chat-dialog";
 import { SettingsDialog } from "./settings-dialog";
 import Link from "next/link";
 import {
@@ -84,6 +85,7 @@ export function ChatSidebar() {
   const [aiProviderOpen, setAiProviderOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [exportChatId, setExportChatId] = useState<string | null>(null);
+  const [importChatOpen, setImportChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -732,12 +734,20 @@ export function ChatSidebar() {
           }}
         />
 
+        <ImportChatDialog
+          userId={userId}
+          open={importChatOpen}
+          onOpenChange={setImportChatOpen}
+          onImported={refreshChats}
+        />
+
         <SettingsDialog
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           onOpenMCP={() => setMcpSettingsOpen(true)}
           onOpenAIProvider={() => setAiProviderOpen(true)}
           onOpenSystemPrompt={() => setSystemPromptOpen(true)}
+          onOpenImport={() => setImportChatOpen(true)}
         />
       </SidebarFooter>
 
