@@ -18,6 +18,7 @@
         "attachFiles": "Adjuntar archivos",
         "removeAttachment": "Quitar adjunto",
         "customInstructions": "Instrucciones personalizadas",
+        "moreActions": "Más opciones",
         "selectModel": "Seleccionar modelo",
         "provider": "Proveedor",
         "apiVersion": "Versión de API",
@@ -97,9 +98,15 @@
         "exportJson": "JSON",
         "exportJsonDesc": "Datos sin procesar para portabilidad (.json)",
         "exportSuccess": "Conversación exportada",
-        "exportError": "Error al exportar la conversación"
+        "exportError": "Error al exportar la conversación",
+        "tokensPerMessage": "Tokens por mensaje",
+        "tokens": "Tokens",
+        "total": "Total",
+        "you": "Tú",
+        "assistant": "Asistente"
     },
     "mcp": {
+        "error": "Error",
         "saveChanges": "Guardar cambios",
         "save": "Guardar",
         "cancel": "Cancelar",

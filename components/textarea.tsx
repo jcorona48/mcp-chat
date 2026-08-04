@@ -7,7 +7,6 @@ import {
 import { Textarea as ShadcnTextarea } from "@/components/ui/textarea";
 import {
   ArrowUp,
-  BookmarkPlus,
   Image,
   Loader2,
   Paperclip,
@@ -17,18 +16,19 @@ import {
 } from "lucide-react";
 import { ModelPicker } from "./model-picker";
 import { ModelParams } from "./model-params";
+import { ComposerMoreMenu } from "./composer-more-menu";
+import { PromptPresetsMenu } from "./prompt-presets-menu";
+import { type UsageMessage } from "./token-badge";
 import { useAiProvider } from "@/lib/context/ai-provider-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { AI_PROMPT_PRESETS_KEY } from "@/lib/ai/types";
+import { type TokenUsage } from "@/lib/chat/usage";
 import { useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -50,6 +50,9 @@ interface InputProps {
   onMaxTokensChange?: (value: number | null) => void;
   systemPromptActive?: boolean;
   onSystemPromptClick?: () => void;
+  tokenBadge?: React.ReactNode;
+  usage?: TokenUsage | null;
+  messages?: UsageMessage[] | null;
 }
 
 export const Textarea = ({
@@ -69,6 +72,9 @@ export const Textarea = ({
   onMaxTokensChange,
   systemPromptActive = false,
   onSystemPromptClick,
+  tokenBadge,
+  usage = null,
+  messages = null,
 }: InputProps) => {
   const t = useTranslations("common");
   const tPresets = useTranslations("promptPresets");
@@ -79,6 +85,7 @@ export const Textarea = ({
     [],
   );
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [visionDismissed, setVisionDismissed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +107,11 @@ export const Textarea = ({
     }
   }, [hasImageAttachment]);
 
+  const closePresetMenus = () => {
+    setDropdownOpen(false);
+    setMoreMenuOpen(false);
+  };
+
   const saveCurrentAsPreset = () => {
     const trimmed = input.trim();
     if (!trimmed) {
@@ -108,12 +120,19 @@ export const Textarea = ({
     }
     if (presets.includes(trimmed)) {
       toast.info(tPresets("alreadyExists"));
-      setDropdownOpen(false);
-      return;
+    } else {
+      setPresets([...presets, trimmed]);
+      toast.success(tPresets("saved"));
     }
-    setPresets([...presets, trimmed]);
-    setDropdownOpen(false);
-    toast.success(tPresets("saved"));
+    closePresetMenus();
+  };
+
+  const selectPreset = (preset: string) => {
+    const event = {
+      target: { value: preset },
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    handleInputChange(event);
+    closePresetMenus();
   };
 
   const deletePreset = (preset: string) => {
@@ -227,12 +246,30 @@ export const Textarea = ({
           setSelectedModel={setSelectedModel}
           selectedModel={selectedModel}
         />
+        <ComposerMoreMenu
+          open={moreMenuOpen}
+          onOpenChange={setMoreMenuOpen}
+          systemPromptActive={systemPromptActive}
+          onSystemPromptClick={onSystemPromptClick}
+          temperature={temperature}
+          maxTokens={maxTokens}
+          onTemperatureChange={onTemperatureChange}
+          onMaxTokensChange={onMaxTokensChange}
+          onAttachClick={() => fileInputRef.current?.click()}
+          presets={presets}
+          onSelectPreset={selectPreset}
+          onDeletePreset={deletePreset}
+          onSaveCurrent={saveCurrentAsPreset}
+          canSaveCurrent={!!input.trim()}
+          usage={usage}
+          messages={messages}
+        />
         {onSystemPromptClick && (
           <button
             type="button"
             onClick={onSystemPromptClick}
             className={cn(
-              "relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors",
+              "relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors",
               systemPromptActive && "text-primary"
             )}
             aria-label={t("customInstructions")}
@@ -245,14 +282,17 @@ export const Textarea = ({
           </button>
         )}
         <div className="flex-1" />
-        {onTemperatureChange && onMaxTokensChange && (
-          <ModelParams
-            temperature={temperature}
-            maxTokens={maxTokens}
-            onTemperatureChange={onTemperatureChange}
-            onMaxTokensChange={onMaxTokensChange}
-          />
-        )}
+        {tokenBadge}
+        <div className="hidden sm:block">
+          {onTemperatureChange && onMaxTokensChange && (
+            <ModelParams
+              temperature={temperature}
+              maxTokens={maxTokens}
+              onTemperatureChange={onTemperatureChange}
+              onMaxTokensChange={onMaxTokensChange}
+            />
+          )}
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -266,7 +306,7 @@ export const Textarea = ({
           onClick={() => fileInputRef.current?.click()}
           disabled={isStreaming}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors",
+            "hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors",
             attachments.length > 0 && "text-primary",
             "disabled:opacity-40 disabled:cursor-not-allowed"
           )}
@@ -276,72 +316,32 @@ export const Textarea = ({
           <Paperclip className="h-4 w-4" />
         </button>
 
-        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
-              aria-label={tPresets("title")}
-              title={tPresets("title")}
+        <div className="hidden sm:block">
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+                aria-label={tPresets("title")}
+                title={tPresets("title")}
+              >
+                <Tags className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-80 max-h-80 overflow-y-auto no-scrollbar"
             >
-              <Tags className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-80 max-h-80 overflow-y-auto no-scrollbar"
-          >
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              {tPresets("listLabel")}
-            </DropdownMenuLabel>
-            {presets.length === 0 ? (
-              <DropdownMenuItem disabled>
-                {tPresets("noPresets")}
-              </DropdownMenuItem>
-            ) : (
-              presets.map((preset, i) => (
-                <DropdownMenuItem
-                  key={`${preset}-${i}`}
-                  className="flex items-start justify-between gap-2"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    const event = {
-                      target: { value: preset },
-                    } as React.ChangeEvent<HTMLTextAreaElement>;
-                    handleInputChange(event);
-                    setDropdownOpen(false);
-                  }}
-                >
-                  <span className="flex-1 truncate text-sm">{preset}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label={tPresets("delete")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deletePreset(preset);
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuItem>
-              ))
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={!input.trim()}
-              onSelect={(e) => {
-                e.preventDefault();
-                saveCurrentAsPreset();
-              }}
-            >
-              <BookmarkPlus className="mr-2 h-4 w-4" />
-              {tPresets("saveCurrent")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <PromptPresetsMenu
+                presets={presets}
+                onSelectPreset={selectPreset}
+                onDeletePreset={deletePreset}
+                onSaveCurrent={saveCurrentAsPreset}
+                canSaveCurrent={!!input.trim()}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <button
           type={isStreaming ? "button" : "submit"}

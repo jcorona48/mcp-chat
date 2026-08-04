@@ -409,7 +409,7 @@ const PurePreviewMessage = ({
                   return null;
               }
             })}
-              {isCollapsible && toggleButton(true, () => setIsExpanded(false))}
+            {isCollapsible && toggleButton(true, () => setIsExpanded(false))}
             </>
           )}
           {showActions && (

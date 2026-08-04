@@ -27,6 +27,8 @@ import { ChatMessage } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Search, X } from "lucide-react";
+import { getChatUsage } from "@/lib/chat/usage";
+import { TokenBadge } from "./token-badge";
 import { SystemPromptDialog } from "./system-prompt-dialog";
 // Type for chat data from DB
 interface ChatData {
@@ -378,6 +380,8 @@ export default function Chat() {
         );
     }, [messages, conversationSearch]);
 
+    const chatUsage = useMemo(() => getChatUsage(messages), [messages]);
+
     return (
         <div className="h-dvh flex flex-col justify-center w-full max-w-107.5 sm:max-w-3xl mx-auto px-4 sm:px-6 py-3">
             {!showConversation ? (
@@ -404,6 +408,8 @@ export default function Chat() {
                             maxTokens={maxTokens}
                             onTemperatureChange={setTemperature}
                             onMaxTokensChange={setMaxTokens}
+                            usage={chatUsage}
+                            messages={messages}
                         />
                     </form>
                 </div>
@@ -473,6 +479,11 @@ export default function Chat() {
                             onMaxTokensChange={setMaxTokens}
                             systemPromptActive={systemPrompt.trim().length > 0}
                             onSystemPromptClick={() => setSystemPromptOpen(true)}
+                            tokenBadge={
+                                <TokenBadge usage={chatUsage} messages={messages} />
+                            }
+                            usage={chatUsage}
+                            messages={messages}
                         />
                     </form>
                 </>

@@ -13,9 +13,11 @@ import {
 import { decideExecutionModel } from "@/lib/chat/model-execution-policy";
 import { db } from "@/lib/db";
 import { chats, MessagePart } from "@/lib/db/schema";
+import { addUsageToParts } from "@/lib/chat/usage";
 import { initializeMCPClients, type MCPServerConfig } from "@/lib/mcp-client";
 // AI config tools: proposes MCP server configs for the user to apply in the UI (remove to disable).
 import { createAiConfigTools } from "@/lib/chat/ai-config-tools";
+import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -338,6 +340,11 @@ export async function POST(req: Request) {
         let responseCompleted = false;
         let lastErrorMessageForUser: string | null = null;
         let sawToolCallingFailure = false;
+        let lastStreamUsage: {
+          inputTokens: number | undefined;
+          outputTokens: number | undefined;
+          totalTokens: number | undefined;
+        } | null = null;
         trace("stream_setup_started", { maxSteps: 20 });
 
         const modelMessages = await convertToModelMessages(messages);
@@ -358,45 +365,11 @@ export async function POST(req: Request) {
                 const result = streamText({
                     model: executionLanguageModel,
                     abortSignal: combinedSignal,
-                    system: `You are a helpful assistant with access to a variety of tools.
-
-    Today's date is ${new Date().toISOString()}.
-
-    The tools are very powerful, and you can use them to answer the user's question.
-    So choose the tool that is most relevant to the user's question.
-
-    If tools are not available, say you don't know or if the user wants a tool they can add one from the server icon in bottom left corner in the sidebar.
-
-    If the user asks to add, connect, set up, or UPDATE an MCP server, use the addMcpServer tool to propose the configuration. The proposal is a PROPOSAL ONLY: it is NOT applied and the server is NOT connected until the user clicks Apply in the chat. After proposing, summarize the config and STOP: do not assume the server is active and do not try to use its tools in the current turn, they are not available yet. If a server with the same name or URL already exists, the tool result marks it as an update so the user can apply the changes in one click, but you must still wait for the user to apply it.${activeServersContext}
-
-    You can use multiple tools in a single response.
-    Always respond after using the tools for better user experience.
-    You can run multiple steps using all the tools!!!!
-    Make sure to use the right tool to respond to the user's question.
-
-    Multiple tools can be used in a single response and multiple steps can be used to answer the user's question.
-    If a tool call fails because of invalid parameters or schema validation, inspect the error, correct the arguments, and try the tool again once before giving up.
-
-    ## Response Format
-    - Markdown is supported.
-    - Respond according to tool's response.
-    - Use the tools to answer the user's question.
-    - If you don't know the answer, use the tools to find the answer or say you don't know.
-
-    ## Presentation Rules
-    - NEVER dump raw JSON, code, or internal tool output directly to the user.
-    - Always translate tool results into a clean, human-friendly format for non-technical users: use tables, lists, bullet points, and clear headings.
-    - If a tool returns technical details (IDs, schemas, raw data), summarize what matters to the user and hide internal noise.
-    - Format currency, dates, and numbers in a readable way.
-    - If a tool returns an error or an empty result, explain it in plain language and suggest what the user can do next.
-
-    ## Suggested Follow-ups
-    - At the very end of your response, in natural language and without any special formatting or UI markup, include a short list of 2-3 possible follow-up questions or next steps the user could ask. Start it with a line like "¿Quieres seguir explorando?" or an equivalent natural phrase, followed by the suggestions. This is optional and should feel like a natural part of the conversation, not a menu.
-
-    ${systemPrompt ? `## User-Provided Instructions
-    The user has set the following custom instructions. Follow them on top of the general rules above:
-    ${systemPrompt}
-    ` : ""}`,
+                    system: buildSystemPrompt({
+                        now: new Date(),
+                        activeServersContext,
+                        userSystemPrompt: systemPrompt,
+                    }),
                     messages: modelMessages,
                     tools: instrumentedTools,
                     timeout: STREAM_TIMEOUT_MS,
@@ -499,6 +472,7 @@ export async function POST(req: Request) {
                     },
                     async onFinish({ response, usage }) {
                         responseCompleted = true;
+                        lastStreamUsage = usage ?? null;
                         clearTimeout(streamTimeoutId);
                         trace("stream_on_finish", {
                             response,
@@ -527,7 +501,22 @@ export async function POST(req: Request) {
             },
             generateId: () => nanoid(),
             onFinish: async ({ messages: finishedMessage }) => {
+                const knownIds = new Set(messages.map((m) => m.id));
                 for (const message of finishedMessage) {
+                    const isResponse =
+                        message.id ===
+                        finishedMessage[finishedMessage.length - 1]?.id;
+                    if (!isResponse && knownIds.has(message.id)) {
+                        continue;
+                    }
+
+                    if (message.role === "assistant" && lastStreamUsage) {
+                        message.parts = addUsageToParts(
+                            (message.parts ?? []) as MessagePart[],
+                            lastStreamUsage,
+                        ) as typeof message.parts;
+                    }
+
                     const existingMessage = messages.find(
                         (m) => m.id === message.id,
                     );

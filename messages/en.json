@@ -18,6 +18,7 @@
         "attachFiles": "Attach files",
         "removeAttachment": "Remove attachment",
         "customInstructions": "Custom instructions",
+        "moreActions": "More options",
         "selectModel": "Select model",
         "provider": "Provider",
         "apiVersion": "API Version",
@@ -97,7 +98,12 @@
         "exportJson": "JSON",
         "exportJsonDesc": "Raw data for portability (.json)",
         "exportSuccess": "Conversation exported",
-        "exportError": "Error exporting conversation"
+        "exportError": "Error exporting conversation",
+        "tokensPerMessage": "Tokens per message",
+        "tokens": "Tokens",
+        "total": "Total",
+        "you": "You",
+        "assistant": "Assistant"
     },
     "mcp": {
         "title": "MCP Server Configuration",

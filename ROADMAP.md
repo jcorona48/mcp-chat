@@ -48,15 +48,15 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 - i18n: `recentModels`, `favoriteModels`, `removeFavorite` (es/en).
 - Implementado: secciones Favoritos/Recientes/Todos con `SelectLabel`, toggle estrella por fila (hover), badge Cog para custom, `useLocalStorage` global, prune de ids inválidos. Registro de recientes en `handleModelChange` (sin necesidad de tocar chat.tsx).
 
-### 8. Token/costo por mensaje y por chat · `M` · pendiente
-**Feature #7.** Leer `usage` (prompt/completion tokens) del stream: en AI SDK, `useChat` expone `messages[i].usage` / `message.parts` (o `onFinish(usage)`); acumular en `lib` un contador por chat y mostrarlo en el header o al pie de cada mensaje. Costo: mapa de precios por modelo (OpenRouter `/models` devuelve `pricing`; para Anthropic/OpenAI usar tablas aproximadas).
-- Archivos: `components/chat.tsx`, `components/message.tsx`, `app/api/ai/models/route.ts` (podría añadir `pricing`/`contextLength` al catálogo), `lib/`.
-- Nota: empezar solo con tokens (sin costo) si el mapa de precios da pereza.
+### 8. Token/costo por mensaje y por chat · `M` · hecho
+**Feature #7.** Leer `usage` (prompt/completion tokens) del stream: en AI SDK, `streamText` expone `usage` en `onFinish`; se persiste como parte `{ type: "usage", promptTokens, completionTokens, totalTokens }` solo en el mensaje assistant de la respuesta (sin reescribir el historial). El coste (precio por modelo) se deja para siguiente iteración si el mapa de precios da pereza.
+- Archivos: `app/api/chat/route.ts`, `lib/chat/usage.ts`, `components/token-badge.tsx`, `components/textarea.tsx`, `components/chat.tsx`.
+- Implementado: persistencia server-side del usage con helpers tipados (`getChatUsage`/`getMessageUsage`/`addUsageToParts` en `lib/chat/usage.ts`, reutilizables por #9); badge reutilizable `TokenBadge` (total + popover con desglose por mensaje) mostrado junto al textarea vía slot `tokenBadge`; system prompt del sistema extraído y compactado en `lib/ai/system-prompt.ts` (`buildSystemPrompt`). Contador del system-prompt dialog retirado (UX mala; el objetivo era el prompt del sistema, no el del usuario).
 
 ### 9. Barra de uso de contexto · `M` · pendiente
-**Feature #8.** Mostrar % del context window consumido (tokens del chat / contexto del modelo). Requiere mapa `modelId → contextLength` (OpenRouter ya lo devuelve en `/models` como `context_length`; para los demás proveedores, mapa manual de tamaños conocidos con fallback).
+**Feature #8.** Mostrar % del context window consumido (tokens del chat / contexto del modelo). Requiere mapa `modelId → contextLength` (OpenRouter ya lo devuelve en `/models` como `context_length`; para los demás proveedores, mapa manual de tamaños conocidos con fallback). El conteo de tokens ya está implementado (#8).
 - Archivos: `lib/ai/` (mapa de contextos), `components/chat.tsx` (barra bajo el header o sobre el textarea), `app/api/ai/models/route.ts`.
-- Nota: color ámbar >70%, rojo >90%; opcional botón "compactar" (resumen hasta aquí).
+- Nota: color ámbar >70%, rojo >90%; opcional botón "compactar" (resumen hasta aquí). Reutilizar `getChatUsage` de `lib/chat/usage.ts`.
 
 ### 10. Temas custom / acento · `M` · hecho
 **Feature #30.** Selector de color primario (una paleta de ~6 acentos) que overridera las CSS variables de `app/globals.css` (ej. `--primary`, `--ring`). Persistir en `localStorage`. Requiere que los tokens de color estén definidos como variables — verificar estructura actual.
