@@ -1,18 +1,17 @@
 "use client";
 import type { UIMessage as TMessage } from "ai";
 import { Message } from "./message";
+import type { MessageStatus } from "@/lib/types";
 import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
 
 export const Messages = ({
   messages,
-  isLoading,
   status,
   onEditSubmit,
   onRegenerate,
 }: {
   messages: TMessage[];
-  isLoading: boolean;
-  status: "error" | "submitted" | "streaming" | "ready";
+  status: MessageStatus;
   onEditSubmit?: (text: string, messageId: string) => void;
   onRegenerate?: () => void;
 }) => {
@@ -25,7 +24,6 @@ export const Messages = ({
           <Message
             key={m.id}
             isLatestMessage={i === messages.length - 1}
-            isLoading={isLoading}
             message={m}
             status={status}
             onEditSubmit={onEditSubmit}
