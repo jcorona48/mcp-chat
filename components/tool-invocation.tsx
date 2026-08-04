@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ChevronDownIcon,
@@ -11,8 +11,12 @@ import {
   Code,
   ArrowRight,
   Circle,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { ToolConfigApply } from "./tool-config-apply";
 import { ADD_MCP_SERVER_TOOL } from "@/lib/chat/ai-config-tools";
 
@@ -21,6 +25,10 @@ interface ToolInvocationProps {
   state: string;
   args: any;
   result: any;
+  approvalId?: string;
+  approved?: boolean;
+  approvalReason?: string;
+  onApprovalResponse?: (approvalId: string, approved: boolean) => void;
   isLatestMessage: boolean;
   status: string;
 }
@@ -30,14 +38,22 @@ export function ToolInvocation({
   state,
   args,
   result,
+  approvalId,
+  approved,
+  approvalReason,
+  onApprovalResponse,
   isLatestMessage,
   status,
 }: ToolInvocationProps) {
   const t = useTranslations("common");
   const [isExpanded, setIsExpanded] = useState(
-    toolName === ADD_MCP_SERVER_TOOL
+    toolName === ADD_MCP_SERVER_TOOL || state === "approval-requested"
   );
   const normalizedState = state ?? "input-streaming";
+  const isApprovalRequested = normalizedState === "approval-requested";
+  const isApprovalResponded = normalizedState === "approval-responded";
+  const isOutputDenied = normalizedState === "output-denied";
+  const isDenied = isOutputDenied || (isApprovalResponded && approved === false);
   const isLegacyCall =
     normalizedState === "partial-call" ||
     normalizedState === "call" ||
@@ -52,7 +68,24 @@ export function ToolInvocation({
     normalizedState === "result";
   const isErrored = normalizedState === "output-error";
 
+  useEffect(() => {
+    if (isApprovalRequested) {
+      setIsExpanded(true);
+    }
+  }, [isApprovalRequested]);
+
   const getStatusIcon = () => {
+    if (isApprovalRequested) {
+      return (
+        <ShieldAlert className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+      );
+    }
+    if (isDenied) {
+      return <ShieldX className="h-3.5 w-3.5 text-red-400" />;
+    }
+    if (isApprovalResponded) {
+      return <ShieldCheck className="h-3.5 w-3.5 text-primary" />;
+    }
     if (isRunning) {
       if (isLatestMessage && status !== "ready") {
         return <Loader2 className="animate-spin h-3.5 w-3.5 text-primary/70" />;
@@ -67,7 +100,24 @@ export function ToolInvocation({
     return <CheckCircle2 size={14} className="text-primary/90" />;
   };
 
+  const getStatusLabel = () => {
+    if (isApprovalRequested) return t("approvalRequired");
+    if (isDenied) return t("denied");
+    if (isApprovalResponded) return t("approved");
+    if (isRunning) {
+      return isLatestMessage && status !== "ready"
+        ? t("running")
+        : t("waiting");
+    }
+    if (isErrored) return t("error");
+    if (isCompleted) return t("completed");
+    return normalizedState;
+  };
+
   const getStatusClass = () => {
+    if (isApprovalRequested) return "text-amber-500";
+    if (isDenied) return "text-red-400";
+    if (isApprovalResponded) return "text-primary";
     if (isRunning) {
       if (isLatestMessage && status !== "ready") {
         return "text-primary";
@@ -101,7 +151,8 @@ export function ToolInvocation({
       className={cn(
         "flex flex-col mb-2 rounded-md border border-border/50 overflow-hidden",
         "bg-linear-to-b from-background to-muted/30 backdrop-blur-sm",
-        "transition-all duration-200 hover:border-border/80 group"
+        "transition-all duration-200 hover:border-border/80 group",
+        isApprovalRequested && "border-amber-500/40"
       )}
     >
       <div
@@ -120,15 +171,7 @@ export function ToolInvocation({
           </span>
           <ArrowRight className="h-3 w-3 text-muted-foreground/50" />
           <span className={cn("font-medium", getStatusClass())}>
-            {isRunning
-              ? isLatestMessage && status !== "ready"
-                ? t("running")
-                : t("waiting")
-              : isErrored
-                ? t("error")
-                : isCompleted
-                  ? t("completed")
-                  : normalizedState}
+            {getStatusLabel()}
           </span>
         </div>
         <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
@@ -166,27 +209,55 @@ export function ToolInvocation({
                 </div>
               )}
 
-              {!!result && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                    <ArrowRight className="h-3 w-3" />
-                    <span className="font-medium">{t("result")}</span>
-                  </div>
-                  <pre
-                    className={cn(
-                      "text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-75 overflow-y-auto",
-                      "border border-border/40 bg-muted/10"
-                    )}
+              {isApprovalRequested && approvalId && onApprovalResponse ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onApprovalResponse(approvalId, false)}
                   >
-                    {formatContent(result)}
-                  </pre>
+                    <ShieldX className="h-3.5 w-3.5 text-red-400" />
+                    {t("deny")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => onApprovalResponse(approvalId, true)}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {t("approve")}
+                  </Button>
                 </div>
-              )}
+              ) : isDenied ? (
+                <div className="text-xs text-red-400/80 pt-1">
+                  {approvalReason
+                    ? `${t("denied")}: ${approvalReason}`
+                    : t("toolDeniedMessage")}
+                </div>
+              ) : (
+                <>
+                  {!!result && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                        <ArrowRight className="h-3 w-3" />
+                        <span className="font-medium">{t("result")}</span>
+                      </div>
+                      <pre
+                        className={cn(
+                          "text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-75 overflow-y-auto",
+                          "border border-border/40 bg-muted/10"
+                        )}
+                      >
+                        {formatContent(result)}
+                      </pre>
+                    </div>
+                  )}
 
-              {!args && !result && isLegacyCall && (
-                <div className="text-xs text-muted-foreground/70 pt-1">
-                  {t("callingLegacyTool")}
-                </div>
+                  {!args && !result && isLegacyCall && (
+                    <div className="text-xs text-muted-foreground/70 pt-1">
+                      {t("callingLegacyTool")}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

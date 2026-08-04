@@ -62,9 +62,9 @@ function getFastChatTitle(userMessage?: UIMessage): string {
     return text.length > 60 ? `${text.slice(0, 60)}...` : text;
 }
 
-function expandDisabledToolNames(disabledTools: string[]): Set<string> {
+function expandToolNameVariants(toolNames: string[]): Set<string> {
   const expanded = new Set<string>();
-  for (const name of disabledTools) {
+  for (const name of toolNames) {
     expanded.add(name);
     if (name.includes("-")) {
       expanded.add(name.replace(/-/g, "_"));
@@ -195,6 +195,7 @@ export async function POST(req: Request) {
         userId,
         mcpServers = [],
         disabledTools = [],
+        approvalTools = [],
         apiKeys = {},
         customModels = [],
         systemPrompt = "",
@@ -207,6 +208,7 @@ export async function POST(req: Request) {
         userId: string;
         mcpServers?: MCPServerConfig[];
         disabledTools?: string[];
+        approvalTools?: string[];
         apiKeys?: Record<string, string | undefined>;
         customModels?: {
             id: string;
@@ -332,7 +334,7 @@ export async function POST(req: Request) {
             combinedSignal,
             MCP_INIT_TIMEOUT_MS,
         );
-        const disabledToolSet = expandDisabledToolNames(disabledTools);
+        const disabledToolSet = expandToolNameVariants(disabledTools);
         const enabledTools = Object.fromEntries(
             Object.entries(tools).filter(
                 ([name]) => !disabledToolSet.has(name),
@@ -356,11 +358,25 @@ export async function POST(req: Request) {
             { ...enabledTools, ...createAiConfigTools(mcpServers) },
             trace,
         );
+        const approvalToolSet = expandToolNameVariants(approvalTools);
+        const toolsWithApprovalPolicy = Object.fromEntries(
+            Object.entries(instrumentedTools).map(([name, definition]) => {
+                if (!approvalToolSet.has(name)) return [name, definition];
+                return [
+                    name,
+                    {
+                        ...(definition as Record<string, unknown>),
+                        needsApproval: true,
+                    } as ToolSet[string],
+                ];
+            }),
+        );
 
         trace("mcp_init_finished", {
             mcpInitMs: Date.now() - mcpInitStartedAt,
             discoveredToolCount: Object.keys(tools).length,
             disabledToolCount: disabledTools.length,
+            approvalToolCount: approvalTools.length,
             selectedModel,
             executionModel,
             modelAutoSwitched,
@@ -400,9 +416,10 @@ export async function POST(req: Request) {
                         now: new Date(),
                         activeServersContext,
                         userSystemPrompt: systemPrompt,
+                        hasApprovalTools: approvalToolSet.size > 0,
                     }),
                     messages: modelMessages,
-                    tools: instrumentedTools,
+                    tools: toolsWithApprovalPolicy,
                     timeout: STREAM_TIMEOUT_MS,
                     stopWhen: stepCountIs(STEP_COUNT_LIMIT),
                     maxRetries: 2,

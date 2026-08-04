@@ -20,6 +20,7 @@ interface MessageProps {
   isLatestMessage: boolean;
   onEditSubmit?: (text: string, messageId: string) => void;
   onRegenerate?: () => void;
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
 }
 
 function MessageComponent({
@@ -28,6 +29,7 @@ function MessageComponent({
   isLatestMessage,
   onEditSubmit,
   onRegenerate,
+  onToolApproval,
 }: MessageProps) {
   const t = useTranslations("common");
   const [isEditing, setIsEditing] = useState(false);
@@ -112,6 +114,7 @@ function MessageComponent({
                 isUserMessage={isUserMessage}
                 isLatestMessage={isLatestMessage}
                 status={status}
+                onToolApproval={onToolApproval}
               />
               {isCollapsible && toggleButton(true, () => setIsExpanded(false))}
             </>

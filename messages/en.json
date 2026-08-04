@@ -39,6 +39,12 @@
         "running": "Running",
         "waiting": "Waiting",
         "completed": "Completed",
+        "approvalRequired": "Approval required",
+        "approved": "Approved",
+        "denied": "Denied",
+        "approve": "Approve",
+        "deny": "Deny",
+        "toolDeniedMessage": "The tool was denied.",
         "thinking": "Thinking...",
         "reasoning": "Reasoning",
         "clickToHide": "(click to hide)",
@@ -237,7 +243,12 @@
         "collapseAll": "Collapse",
         "noTools": "Connect an MCP server to see tools",
         "searchPlaceholder": "Search tools...",
-        "tooltip": "Available tools"
+        "tooltip": "Available tools",
+        "requireApproval": "Require approval before executing",
+        "autoExecute": "Execute automatically without approval",
+        "approvalHint": "Tools with a shield require your approval before running.",
+        "approvalOnly": "Approval only",
+        "noApprovalTools": "No tools require approval"
     },
     "theme": {
         "dark": "Dark",

@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   MCP_SERVERS: "mcp-servers",
   SELECTED_MCP_SERVERS: "selected-mcp-servers",
   DISABLED_TOOLS: "disabled-tools",
+  APPROVAL_TOOLS: "approval-tools",
 } as const;
 
 export interface MCPTool {
@@ -62,6 +63,8 @@ interface MCPContextType {
   setSelectedMcpServers: (serverIds: string[]) => void;
   disabledTools: string[];
   setDisabledTools: (toolNames: string[]) => void;
+  approvalTools: string[];
+  setApprovalTools: (toolNames: string[]) => void;
   activeTools: ActiveToolGroup[];
   mcpServersForApi: MCPServerApi[];
   startServer: (serverId: string, serverOverride?: MCPServer) => Promise<boolean>;
@@ -114,6 +117,11 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
 
   const [disabledTools, setDisabledTools] = useLocalStorage<string[]>(
     STORAGE_KEYS.DISABLED_TOOLS,
+    []
+  );
+
+  const [approvalTools, setApprovalTools] = useLocalStorage<string[]>(
+    STORAGE_KEYS.APPROVAL_TOOLS,
     []
   );
 
@@ -292,6 +300,17 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeTools, disabledTools, setDisabledTools]);
 
+  // Prune approval tool ids that no longer exist in the active toolset
+  useEffect(() => {
+    const validIds = new Set(
+      activeTools.flatMap((group) => group.tools.map((t) => t.name))
+    );
+    const pruned = approvalTools.filter((id) => validIds.has(id));
+    if (pruned.length !== approvalTools.length) {
+      setApprovalTools(pruned);
+    }
+  }, [activeTools, approvalTools, setApprovalTools]);
+
   // Calculate mcpServersForApi based on current state
   const mcpServersForApi = getActiveServersForApi();
 
@@ -304,6 +323,8 @@ export function MCPProvider({ children }: { children: React.ReactNode }) {
         setSelectedMcpServers,
         disabledTools,
         setDisabledTools,
+        approvalTools,
+        setApprovalTools,
         activeTools,
         mcpServersForApi,
         startServer,

@@ -39,6 +39,12 @@
         "running": "Ejecutando",
         "waiting": "Esperando",
         "completed": "Completado",
+        "approvalRequired": "Requiere aprobación",
+        "approved": "Aprobada",
+        "denied": "Denegada",
+        "approve": "Aprobar",
+        "deny": "Denegar",
+        "toolDeniedMessage": "La herramienta fue denegada.",
         "thinking": "Pensando...",
         "reasoning": "Razonamiento",
         "clickToHide": "(clic para ocultar)",
@@ -241,7 +247,12 @@
         "collapseAll": "Colapsar",
         "noTools": "Conecta un servidor MCP para ver herramientas",
         "searchPlaceholder": "Buscar herramientas...",
-        "tooltip": "Herramientas disponibles"
+        "tooltip": "Herramientas disponibles",
+        "requireApproval": "Requerir aprobación antes de ejecutar",
+        "autoExecute": "Ejecutar automáticamente sin aprobación",
+        "approvalHint": "Las herramientas con escudo requieren tu aprobación antes de ejecutarse.",
+        "approvalOnly": "Con aprobación",
+        "noApprovalTools": "No hay tools que requieran aprobación"
     },
     "theme": {
         "dark": "Oscuro",

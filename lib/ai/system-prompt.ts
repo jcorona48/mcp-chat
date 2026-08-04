@@ -4,6 +4,8 @@ export interface SystemPromptInput {
   activeServersContext?: string;
   /** Custom instructions set by the user, appended as overrides. */
   userSystemPrompt?: string;
+  /** Whether any tool in the toolset requires user approval. */
+  hasApprovalTools?: boolean;
 }
 
 /**
@@ -14,6 +16,7 @@ export function buildSystemPrompt({
   now,
   activeServersContext = "",
   userSystemPrompt = "",
+  hasApprovalTools = false,
 }: SystemPromptInput): string {
   const dateIso = now.toISOString();
 
@@ -26,7 +29,14 @@ If tools are not available, say you don't know, or tell the user they can add on
 If the user asks to add, connect, set up, or UPDATE an MCP server, use the addMcpServer tool to propose the configuration. The proposal is PROPOSAL ONLY: it is NOT applied and the server is NOT connected until the user clicks Apply in the chat. After proposing, summarize the config and STOP: do not assume the server is active and do not try to use its tools in the current turn, they are not available yet. If a server with the same name or URL already exists, the tool result marks it as an update so the user can apply the changes in one click, but you must still wait for the user to apply it.${activeServersContext}
 
 If a tool call fails because of invalid parameters or schema validation, inspect the error, correct the arguments, and try the tool again once before giving up.
-
+${
+  hasApprovalTools
+    ? `
+## Tool Approval
+Some tools require your approval before executing. If the user denies a tool call (you will get a tool result like "Tool execution denied."), do NOT retry the same tool or a renamed variant in the same turn or repeatedly. Instead, briefly acknowledge that you cannot perform that action and either ask the user how to proceed or suggest an alternative that doesn't require the denied action. Only attempt the tool again if the user explicitly asks for it.
+`
+    : ""
+}
 ## Presentation Rules
 - Markdown is supported.
 - NEVER dump raw JSON, code, or internal tool output directly to the user.

@@ -96,7 +96,7 @@ export default function Chat() {
     };
 
     // Get MCP server data from context
-    const { mcpServersForApi, disabledTools } = useMCP();
+    const { mcpServersForApi, disabledTools, approvalTools } = useMCP();
 
     // Get AI provider credentials and custom models from context
     const { apiKeys, customModels } = useAiProvider();
@@ -170,6 +170,7 @@ export default function Chat() {
         selectedModel,
         mcpServers: mcpServersForApi,
         disabledTools,
+        approvalTools,
         chatId: activeChatId,
         userId,
         apiKeys,
@@ -183,6 +184,7 @@ export default function Chat() {
         selectedModel,
         mcpServers: mcpServersForApi,
         disabledTools,
+        approvalTools,
         chatId: activeChatId,
         userId,
         apiKeys,
@@ -215,9 +217,7 @@ export default function Chat() {
                     (part) =>
                         "state" in part &&
                         part.state === "approval-responded" &&
-                        "approval" in part &&
-                        (part.approval as { approved?: boolean })?.approved ===
-                            true,
+                        "approval" in part,
                 ) ?? false
             );
         },
@@ -237,6 +237,7 @@ export default function Chat() {
                         selectedModel: config.selectedModel,
                         mcpServers: config.mcpServers,
                         disabledTools: config.disabledTools,
+                        approvalTools: config.approvalTools,
                         chatId: config.chatId,
                         userId: config.userId,
                         apiKeys: config.apiKeys,
@@ -466,6 +467,9 @@ export default function Chat() {
                             status={effectiveStatus}
                             onEditSubmit={handleEditSubmit}
                             onRegenerate={regenerate}
+                            onToolApproval={(id, approved) =>
+                                addToolApprovalResponse({ id, approved })
+                            }
                         />
                     </div>
                     <form

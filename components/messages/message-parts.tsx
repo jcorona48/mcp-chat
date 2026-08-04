@@ -16,6 +16,11 @@ type ToolLikePart = {
   input?: unknown;
   output?: unknown;
   errorText?: string;
+  approval?: {
+    id?: string;
+    approved?: boolean;
+    reason?: string;
+  };
   toolInvocation?: {
     toolName: string;
     state: "partial-call" | "call" | "result";
@@ -30,9 +35,20 @@ interface ToolRender {
   state: string;
   args?: unknown;
   result: unknown;
+  approvalId?: string;
+  approved?: boolean;
+  approvalReason?: string;
 }
 
 function normalizeToolPart(part: ToolLikePart): ToolRender | null {
+  const approval = part.approval
+    ? {
+        approvalId: part.approval.id,
+        approved: part.approval.approved,
+        approvalReason: part.approval.reason,
+      }
+    : {};
+
   if (part.type === "tool-invocation") {
     if (!part.toolInvocation?.toolName) return null;
     return {
@@ -40,6 +56,7 @@ function normalizeToolPart(part: ToolLikePart): ToolRender | null {
       state: part.toolInvocation.state ?? "call",
       args: part.toolInvocation.args,
       result: part.toolInvocation.result ?? null,
+      ...approval,
     };
   }
 
@@ -49,6 +66,7 @@ function normalizeToolPart(part: ToolLikePart): ToolRender | null {
       state: part.state || "input-available",
       args: part.input,
       result: part.output ?? part.errorText ?? null,
+      ...approval,
     };
   }
 
@@ -60,11 +78,13 @@ export function MessagePartsRenderer({
   isUserMessage,
   isLatestMessage,
   status,
+  onToolApproval,
 }: {
   message: TMessage;
   isUserMessage: boolean;
   isLatestMessage: boolean;
   status: MessageStatus;
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
 }) {
   const t = useTranslations("common");
 
@@ -81,6 +101,10 @@ export function MessagePartsRenderer({
               state={tool.state}
               args={tool.args}
               result={tool.result}
+              approvalId={tool.approvalId}
+              approved={tool.approved}
+              approvalReason={tool.approvalReason}
+              onApprovalResponse={onToolApproval}
               isLatestMessage={isLatestMessage}
               status={status}
             />

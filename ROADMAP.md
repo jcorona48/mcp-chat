@@ -51,7 +51,7 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 ### 8. Token/costo por mensaje y por chat · `M` · hecho
 **Feature #7.** Leer `usage` (prompt/completion tokens) del stream: en AI SDK, `streamText` expone `usage` en `onFinish`; se persiste como parte `{ type: "usage", promptTokens, completionTokens, totalTokens }` solo en el mensaje assistant de la respuesta (sin reescribir el historial). El coste (precio por modelo) se deja para siguiente iteración si el mapa de precios da pereza.
 - Archivos: `app/api/chat/route.ts`, `lib/chat/usage.ts`, `components/token-badge.tsx`, `components/textarea.tsx`, `components/chat.tsx`.
-- Implementado: persistencia server-side del usage con helpers tipados (`getChatUsage`/`getMessageUsage`/`addUsageToParts` en `lib/chat/usage.ts`, reutilizables por #9); badge reutilizable `TokenBadge` (total + popover con desglose por mensaje) mostrado junto al textarea vía slot `tokenBadge`; system prompt del sistema extraído y compactado en `lib/ai/system-prompt.ts` (`buildSystemPrompt`). Contador del system-prompt dialog retirado (UX mala; el objetivo era el prompt del sistema, no el del usuario).
+- Implementado: persistencia server-side del usage con helpers tipados (`getChatUsage`/`getMessageUsage`/`addUsageToParts` en `lib/chat/usage.ts`, reutilizables por #9); badge reutilizable `TokenBadge` (total del chat) mostrado junto al textarea vía slot `tokenBadge`; system prompt del sistema extraído y compactado en `lib/ai/system-prompt.ts` (`buildSystemPrompt`). Contador del system-prompt dialog retirado (UX mala; el objetivo era el prompt del sistema, no el del usuario). **Ajuste UX:** el desglose por mensaje (popover/dropdown) se eliminó como redundante con muchos mensajes — queda solo el total.
 
 ### 9. Barra de uso de contexto · `M` · pendiente
 **Feature #8.** Mostrar % del context window consumido (tokens del chat / contexto del modelo). Requiere mapa `modelId → contextLength` (OpenRouter ya lo devuelve en `/models` como `context_length`; para los demás proveedores, mapa manual de tamaños conocidos con fallback). El conteo de tokens ya está implementado (#8).
@@ -81,10 +81,29 @@ Cada item tiene: dificultad (S/M/L), alcance y notas de implementación con refe
 
 ## Fase 3 — Medianos/caros
 
-### 13. Modo aprobación de tools · `M/L` · pendiente
+### 13. Modo aprobación de tools · `M/L` · hecho
 **Feature #16.** Por servidor/tool, elegir modo: **auto** (ejecutar siempre) o **confirmar** (el usuario aprueba cada invocación antes de ejecutar). Persistencia por tool (allow-list/deny-list). La confirmación es un botón en `components/tool-invocation.tsx` en estado "esperando".
 - Archivos: `components/tool-invocation.tsx`, `lib/` (config de permisos), `app/api/chat/route.ts` (el stream ya ejecuta tools server-side — implica pausar/reanudar la generación, lo que lo hace caro).
 - Nota: el diseño actual ejecuta tools en el server dentro de `streamText`; aprobación requiere dividir la generación en pasos o un step de pre-ejecución. Considerar MVP: "tools peligrosas = confirmar" con allow-list manual.
+
+**Cambio de diseño (AI SDK v6):** no hace falta pre-ejecución manual — el SDK trae approval nativo: `tool.needsApproval: true` pausa el stream y emite un chunk `tool-approval-request`; el cliente responde con `addToolApprovalResponse({ id, approved })` y `sendAutomaticallyWhen` re-dispara el request para continuar.
+
+**Decisiones de UX/UI tomadas (user):**
+- Alcance: **global**, por tool (persistido en `localStorage` key `approval-tools`; lista de tools que requieren confirmación; el resto queda en auto).
+- Config: toggle de escudo (Shield/ShieldAlert) en cada fila del `ToolPicker` (desktop y móvil) — fuera del checkbox para no interferir con habilitar/deshabilitar. Mejoras de descubribilidad: **filtro "Con aprobación"** (chip con contador en el popover, ámbar al activarse) para revisar de un vistazo las tools marcadas, y **toggle maestro por servidor** (escudo en el header de cada grupo, junto al checkbox; click = todas requieren aprobación, re-click = ninguna).
+- UI de aprobación: en la card de `ToolInvocation`, estado `approval-requested` = borde ámbar + icono ShieldAlert pulsando + botones **Aprobar/Denegar** junto a los args; `output-denied` muestra "Denegada" (+ razón si existe).
+- Al denegar, la conversación continúa igual que al aprobar (`sendAutomaticallyWhen` dispara con cualquier `approval-responded`), para que el modelo siga sin la tool o pregunte.
+
+**Implementado:**
+- `lib/context/mcp-context.tsx`: estado `approvalTools`/`setApprovalTools` (localStorage `approval-tools`) + prune de ids huérfanos junto a `disabledTools`.
+- `app/api/chat/route.ts`: acepta `approvalTools?: string[]`; `expandToolNameVariants()` (antes `expandDisabledToolNames`) reutilizado para expandir alias `-`↔`_`; sobre las tools instrumentadas aplica `needsApproval: true` a las listadas.
+- `components/chat.tsx`: envía `approvalTools` en el body; `sendAutomaticallyWhen` ahora reenvía con cualquier `approval-responded` (aprobada o denegada); conecta `onToolApproval` → `addToolApprovalResponse` (ya estaba en el destructure de `useChat`).
+- `components/tool-invocation.tsx`: estados `approval-requested` (auto-expande, botones Aprobar/Denegar), `approval-responded` (Aprobada) y `output-denied` (Denegada + razón) con iconos ShieldAlert/ShieldCheck/ShieldX.
+- `components/tool-picker.tsx`: toggle de escudo por tool + hint al pie del popover + filtro "Con aprobación" con contador + toggle maestro por servidor.
+- `lib/config-backup.ts`: `approvalTools` incluido en backup/restore (ver recordatorio de #11).
+- i18n (es/en): `common.approvalRequired/approved/denied/approve/deny/toolDeniedMessage`, `toolPicker.requireApproval/autoExecute/approvalHint/approvalOnly/noApprovalTools`.
+- Nota: al aprobar, el re-request reinicia el servidor MCP (re-init) y re-sitúa el límite de steps (el stream continúa desde la tool aprobada en un request nuevo); aceptado por ahora.
+- Comportamiento del modelo tras una denegación: el re-request le llega como `tool-result` con `error-text` ("Tool execution denied." o el `reason`). Para evitar loops de reintentos, `buildSystemPrompt` incluye una sección `## Tool Approval` **condicional** (solo si `hasApprovalTools`) que le dice al modelo: no reintentar la misma tool ni variantes en el mismo turno, reconocer la imposibilidad y sugerir alternativas/preguntar.
 
 ### 14. Web search como herramienta · `M/L` · pendiente
 Incluir un toggle "Web search" por chat que agregue una herramienta de búsqueda web (ej. provider de búsqueda de `websearch`/Tavily o scraping propio) al toolset junto a las MCP.

@@ -9,11 +9,13 @@ export const Messages = ({
   status,
   onEditSubmit,
   onRegenerate,
+  onToolApproval,
 }: {
   messages: TMessage[];
   status: MessageStatus;
   onEditSubmit?: (text: string, messageId: string) => void;
   onRegenerate?: () => void;
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
 }) => {
   const [containerRef, endRef] = useScrollToBottom();
 
@@ -28,6 +30,7 @@ export const Messages = ({
             status={status}
             onEditSubmit={onEditSubmit}
             onRegenerate={onRegenerate}
+            onToolApproval={onToolApproval}
           />
         ))}
         <div className="h-1" ref={endRef} />

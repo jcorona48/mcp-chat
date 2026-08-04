@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Shield, ShieldAlert, Wrench } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -60,9 +60,16 @@ export function ToolPickerButton(
 
 export function ToolPickerContent() {
   const t = useTranslations("toolPicker");
-  const { activeTools, disabledTools, setDisabledTools } = useMCP();
+  const {
+    activeTools,
+    disabledTools,
+    setDisabledTools,
+    approvalTools,
+    setApprovalTools,
+  } = useMCP();
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [approvalFilter, setApprovalFilter] = useState(false);
   const serverCheckboxRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
   const totalTools = useMemo(
@@ -73,8 +80,27 @@ export function ToolPickerContent() {
   const hasDisabled = activeCount < totalTools;
   const hasManyServers = activeTools.length > 3;
   const isSearching = search.trim().length > 0;
+  const approvalCount = useMemo(
+    () =>
+      activeTools.reduce(
+        (acc, group) =>
+          acc + group.tools.filter((t) => approvalTools.includes(t.name)).length,
+        0,
+      ),
+    [activeTools, approvalTools],
+  );
 
   const isToolDisabled = (name: string) => disabledTools.includes(name);
+
+  const isToolApproval = (name: string) => approvalTools.includes(name);
+
+  const toggleApproval = (name: string) => {
+    setApprovalTools(
+      isToolApproval(name)
+        ? approvalTools.filter((n) => n !== name)
+        : [...approvalTools, name],
+    );
+  };
 
   const isCollapsed = (serverId: string) =>
     isSearching ? false : collapsed[serverId] ?? hasManyServers;
@@ -94,6 +120,19 @@ export function ToolPickerContent() {
         ? disabledTools.filter((n) => n !== name)
         : [...disabledTools, name],
     );
+  };
+
+  const setGroupApproval = (names: string[]) => {
+    const allApproved = names.every((n) => approvalTools.includes(n));
+    const next = new Set(approvalTools);
+    for (const name of names) {
+      if (allApproved) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+    }
+    setApprovalTools([...next]);
   };
 
   const setServerTools = (
@@ -126,18 +165,25 @@ export function ToolPickerContent() {
 
   const filteredGroups = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return activeTools;
     return activeTools
-      .map((group) => ({
-        ...group,
-        tools: group.tools.filter(
-          (tool) =>
-            tool.name.toLowerCase().includes(query) ||
-            (tool.description ?? "").toLowerCase().includes(query),
-        ),
-      }))
+      .map((group) => {
+        let tools = group.tools;
+        if (approvalFilter) {
+          tools = tools.filter((tool) =>
+            approvalTools.includes(tool.name),
+          );
+        }
+        if (query) {
+          tools = tools.filter(
+            (tool) =>
+              tool.name.toLowerCase().includes(query) ||
+              (tool.description ?? "").toLowerCase().includes(query),
+          );
+        }
+        return { ...group, tools };
+      })
       .filter((group) => group.tools.length > 0);
-  }, [activeTools, search]);
+  }, [activeTools, search, approvalFilter, approvalTools]);
 
   const showSearch = totalTools > 12;
 
@@ -178,6 +224,30 @@ export function ToolPickerContent() {
             )}
           </div>
         </div>
+        <div className="flex items-center gap-2 border-b border-border/40 px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => setApprovalFilter((v) => !v)}
+            aria-pressed={approvalFilter}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+              approvalFilter
+                ? "bg-amber-500/15 text-amber-500"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted/70",
+            )}
+          >
+            <ShieldAlert className="h-3 w-3" />
+            {t("approvalOnly")}
+            {approvalCount > 0 && (
+              <span className="tabular-nums opacity-80">{approvalCount}</span>
+            )}
+          </button>
+          {approvalFilter && approvalCount === 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              {t("noApprovalTools")}
+            </span>
+          )}
+        </div>
         {showSearch && (
           <div className="px-3 py-2">
             <Input
@@ -192,6 +262,10 @@ export function ToolPickerContent() {
           {activeTools.length === 0 ? (
             <p className="px-2 py-6 text-center text-xs text-muted-foreground">
               {t("noTools")}
+            </p>
+          ) : filteredGroups.length === 0 ? (
+            <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+              {approvalFilter ? t("noApprovalTools") : t("noTools")}
             </p>
           ) : (
             <div className="grid gap-3">
@@ -251,29 +325,87 @@ export function ToolPickerContent() {
                         className="accent-primary h-3.5 w-3.5"
                         aria-label={group.serverName}
                       />
+                      <button
+                        type="button"
+                        onClick={() => setGroupApproval(groupToolNames)}
+                        aria-pressed={groupToolNames.every((name) =>
+                          isToolApproval(name),
+                        )}
+                        aria-label={
+                          groupToolNames.some((name) => isToolApproval(name))
+                            ? t("autoExecute")
+                            : t("requireApproval")
+                        }
+                        title={
+                          groupToolNames.some((name) => isToolApproval(name))
+                            ? t("autoExecute")
+                            : t("requireApproval")
+                        }
+                        className={cn(
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors",
+                          groupToolNames.some((name) => isToolApproval(name))
+                            ? "bg-amber-500/15 text-amber-500"
+                            : "text-muted-foreground/40 hover:text-muted-foreground",
+                        )}
+                      >
+                        {groupToolNames.some((name) => isToolApproval(name)) ? (
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                        ) : (
+                          <Shield className="h-3.5 w-3.5" />
+                        )}
+                      </button>
                     </div>
                     {!groupCollapsed && (
                       <div className="grid gap-0.5">
                         {group.tools.map((tool) => (
-                          <label
+                          <div
                             key={tool.name}
-                            className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-muted/60"
+                            className="flex min-w-0 items-center gap-1 rounded-md px-1 py-1.5 text-xs hover:bg-muted/60"
                           >
-                            <input
-                              type="checkbox"
-                              checked={!isToolDisabled(tool.name)}
-                              onChange={() => toggleTool(tool.name)}
-                              className="accent-primary h-3.5 w-3.5"
-                            />
-                            <span className="min-w-0 flex-1 truncate font-medium">
-                              {tool.name}
-                            </span>
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!isToolDisabled(tool.name)}
+                                onChange={() => toggleTool(tool.name)}
+                                className="accent-primary h-3.5 w-3.5"
+                              />
+                              <span className="min-w-0 flex-1 truncate font-medium">
+                                {tool.name}
+                              </span>
+                            </label>
                             {tool.description && (
-                              <span className="max-w-32 truncate text-[10px] text-muted-foreground">
+                              <span className="max-w-24 truncate text-[10px] text-muted-foreground">
                                 {tool.description}
                               </span>
                             )}
-                          </label>
+                            <button
+                              type="button"
+                              onClick={() => toggleApproval(tool.name)}
+                              aria-pressed={isToolApproval(tool.name)}
+                              aria-label={
+                                isToolApproval(tool.name)
+                                  ? t("autoExecute")
+                                  : t("requireApproval")
+                              }
+                              title={
+                                isToolApproval(tool.name)
+                                  ? t("autoExecute")
+                                  : t("requireApproval")
+                              }
+                              className={cn(
+                                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors",
+                                isToolApproval(tool.name)
+                                  ? "bg-amber-500/15 text-amber-500"
+                                  : "text-muted-foreground/40 hover:text-muted-foreground",
+                              )}
+                            >
+                              {isToolApproval(tool.name) ? (
+                                <ShieldAlert className="h-3.5 w-3.5" />
+                              ) : (
+                                <Shield className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -282,6 +414,9 @@ export function ToolPickerContent() {
               })}
             </div>
           )}
+        </div>
+        <div className="border-t border-border/40 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+          {t("approvalHint")}
         </div>
     </div>
   );

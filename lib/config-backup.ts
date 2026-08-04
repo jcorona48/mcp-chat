@@ -18,6 +18,7 @@ export interface ConfigBackup {
   mcpServers?: MCPServer[];
   selectedMcpServers?: string[];
   disabledTools?: string[];
+  approvalTools?: string[];
   promptPresets?: string[];
   favoriteModels?: string[];
   recentModels?: string[];
@@ -33,6 +34,7 @@ const STORAGE_KEYS = {
   mcpServers: "mcp-servers",
   selectedMcpServers: "selected-mcp-servers",
   disabledTools: "disabled-tools",
+  approvalTools: "approval-tools",
   accentHue: "accent-hue",
   favoriteModels: "favorite-models",
   recentModels: "recent-models",
