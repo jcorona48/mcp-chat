@@ -206,6 +206,8 @@
         "userId": "ID de usuario",
         "copyUserId": "Copiar ID de usuario",
         "editUserId": "Editar ID de usuario",
+        "settings": "Ajustes",
+        "settingsDescription": "Configura servidores, modelos, preferencias y datos.",
         "mcpSettings": "Configuración MCP",
         "apiKeys": "Claves API",
         "aiModels": "IA y modelos",

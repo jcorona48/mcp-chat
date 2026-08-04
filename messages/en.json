@@ -202,10 +202,13 @@
         "userId": "User ID",
         "copyUserId": "Copy User ID",
         "editUserId": "Edit User ID",
+        "settings": "Settings",
+        "settingsDescription": "Configure servers, models, preferences, and data.",
         "mcpSettings": "MCP Settings",
         "apiKeys": "API Keys",
         "aiModels": "AI & Models",
         "systemPrompt": "Custom instructions",
+        "settings": "Settings",
         "theme": "Theme",
         "mcpServers": "MCP Servers"
     },

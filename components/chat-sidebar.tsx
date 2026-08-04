@@ -9,12 +9,10 @@ import {
   Trash2,
   ServerIcon,
   Settings,
-  Sparkles,
   ChevronsUpDown,
   Copy,
   Pencil,
   GitBranchPlus,
-  Key,
   MoreHorizontal,
   Search,
   Pin,
@@ -42,13 +40,12 @@ import { toast } from "sonner";
 import Image from "next/image";
 import { MCPServerManager } from "./mcp-server-manager";
 import { AiProviderManager } from "./ai-provider-manager";
-import { ThemeToggle } from "./theme-toggle";
-import { LanguageSwitcher } from "./language-switcher";
 import { getUserId, updateUserId } from "@/lib/user-id";
 import { useChats } from "@/lib/hooks/use-chats";
 import { type Chat } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { ExportChatDialog } from "./export-chat-dialog";
+import { SettingsDialog } from "./settings-dialog";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -87,6 +84,7 @@ export function ChatSidebar() {
   const [aiProviderOpen, setAiProviderOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [exportChatId, setExportChatId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [editUserIdOpen, setEditUserIdOpen] = useState(false);
@@ -695,35 +693,12 @@ export function ChatSidebar() {
                 <DropdownMenuItem
                   onSelect={(e) => {
                     e.preventDefault();
-                    setMcpSettingsOpen(true);
+                    setSettingsOpen(true);
                   }}
                 >
                   <Settings className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  {tUser("mcpSettings")}
+                  {tUser("settings")}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setAiProviderOpen(true);
-                  }}
-                >
-                  <Key className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  {tUser("aiModels")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setSystemPromptOpen(true);
-                  }}
-                >
-                  <Sparkles className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  {tUser("systemPrompt")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <ThemeToggle className="h-6 w-full" />
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                  <LanguageSwitcher />
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -755,6 +730,14 @@ export function ChatSidebar() {
           onOpenChange={(open) => {
             if (!open) setExportChatId(null);
           }}
+        />
+
+        <SettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onOpenMCP={() => setMcpSettingsOpen(true)}
+          onOpenAIProvider={() => setAiProviderOpen(true)}
+          onOpenSystemPrompt={() => setSystemPromptOpen(true)}
         />
       </SidebarFooter>
 
