@@ -106,12 +106,7 @@
         "importFileHint": "Exportado desde MceChat (.json)",
         "importSuccess": "Conversación importada",
         "importError": "Error al importar la conversación",
-        "importInvalidFile": "El archivo no contiene una conversación válida",
-        "tokensPerMessage": "Tokens por mensaje",
-        "tokens": "Tokens",
-        "total": "Total",
-        "you": "Tú",
-        "assistant": "Asistente"
+        "importInvalidFile": "El archivo no contiene una conversación válida"
     },
     "mcp": {
         "error": "Error",

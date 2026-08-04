@@ -421,8 +421,6 @@ export default function Chat() {
                             maxTokens={maxTokens}
                             onTemperatureChange={setTemperature}
                             onMaxTokensChange={setMaxTokens}
-                            usage={chatUsage}
-                            messages={messages}
                         />
                     </form>
                 </div>
@@ -492,10 +490,8 @@ export default function Chat() {
                             systemPromptActive={systemPrompt.trim().length > 0}
                             onSystemPromptClick={() => setSystemPromptOpen(true)}
                             tokenBadge={
-                                <TokenBadge usage={chatUsage} messages={messages} />
+                                <TokenBadge usage={chatUsage} />
                             }
-                            usage={chatUsage}
-                            messages={messages}
                         />
                     </form>
                 </>

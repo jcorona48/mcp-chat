@@ -106,12 +106,7 @@
         "importFileHint": "Exported from MceChat (.json)",
         "importSuccess": "Conversation imported",
         "importError": "Error importing conversation",
-        "importInvalidFile": "The file does not contain a valid conversation",
-        "tokensPerMessage": "Tokens per message",
-        "tokens": "Tokens",
-        "total": "Total",
-        "you": "You",
-        "assistant": "Assistant"
+        "importInvalidFile": "The file does not contain a valid conversation"
     },
     "mcp": {
         "title": "MCP Server Configuration",

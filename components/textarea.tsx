@@ -20,7 +20,6 @@ import { ModelParams } from "./model-params";
 import { ComposerMoreMenu } from "./composer-more-menu";
 import { PromptPresetsMenu } from "./prompt-presets-menu";
 import { ToolPicker } from "./tool-picker";
-import { type UsageMessage } from "./token-badge";
 import { useAiProvider } from "@/lib/context/ai-provider-context";
 import {
   DropdownMenu,
@@ -30,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { AI_PROMPT_PRESETS_KEY } from "@/lib/ai/types";
-import { type TokenUsage } from "@/lib/chat/usage";
 import { useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -53,8 +51,6 @@ interface InputProps {
   systemPromptActive?: boolean;
   onSystemPromptClick?: () => void;
   tokenBadge?: React.ReactNode;
-  usage?: TokenUsage | null;
-  messages?: UsageMessage[] | null;
 }
 
 export const Textarea = ({
@@ -75,8 +71,6 @@ export const Textarea = ({
   systemPromptActive = false,
   onSystemPromptClick,
   tokenBadge,
-  usage = null,
-  messages = null,
 }: InputProps) => {
   const t = useTranslations("common");
   const tPresets = useTranslations("promptPresets");
@@ -255,8 +249,6 @@ export const Textarea = ({
           onDeletePreset={deletePreset}
           onSaveCurrent={saveCurrentAsPreset}
           canSaveCurrent={!!input.trim()}
-          usage={usage}
-          messages={messages}
         />
         {onSystemPromptClick && (
           <button

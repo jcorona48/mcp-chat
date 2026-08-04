@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ChevronRight,
-  Hash,
   MoreHorizontal,
   Paperclip,
   SlidersHorizontal,
@@ -16,7 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -27,9 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { ModelParamsControls } from "./model-params";
 import { PromptPresetsMenu } from "./prompt-presets-menu";
-import { TokenBreakdown, type UsageMessage } from "./token-badge";
 import { ToolPickerContent } from "./tool-picker";
-import { type TokenUsage } from "@/lib/chat/usage";
 import { cn } from "@/lib/utils";
 
 interface ComposerMoreMenuProps {
@@ -47,8 +43,6 @@ interface ComposerMoreMenuProps {
   onDeletePreset: (preset: string) => void;
   onSaveCurrent: () => void;
   canSaveCurrent: boolean;
-  usage?: TokenUsage | null;
-  messages?: UsageMessage[] | null;
 }
 
 /**
@@ -71,18 +65,14 @@ export function ComposerMoreMenu({
   onDeletePreset,
   onSaveCurrent,
   canSaveCurrent,
-  usage,
-  messages,
 }: ComposerMoreMenuProps) {
   const t = useTranslations("common");
   const tPresets = useTranslations("promptPresets");
   const tModelParams = useTranslations("modelParams");
-  const tChat = useTranslations("chat");
   const tTools = useTranslations("toolPicker");
 
   const [paramsOpen, setParamsOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
-  const [tokensOpen, setTokensOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
 
   return (
@@ -134,16 +124,6 @@ export function ComposerMoreMenu({
             {tTools("title")}
             <ChevronRight className="ml-auto size-4 text-muted-foreground/50" />
           </DropdownMenuItem>
-          {usage && usage.totalTokens > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setTokensOpen(true)}>
-                <Hash />
-                {tChat("tokens")}
-                <ChevronRight className="ml-auto size-4 text-muted-foreground/50" />
-              </DropdownMenuItem>
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -196,19 +176,6 @@ export function ComposerMoreMenu({
           </div>
         </DialogContent>
       </Dialog>
-
-      {usage && usage.totalTokens > 0 && (
-        <Dialog open={tokensOpen} onOpenChange={setTokensOpen}>
-          <DialogContent className="sm:max-w-[480px] flex flex-col max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>{tChat("tokens")}</DialogTitle>
-            </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
-              <TokenBreakdown usage={usage} messages={messages} />
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
