@@ -79,7 +79,7 @@ export function ReasoningMessagePart({
             <div className="text-sm font-medium text-foreground flex items-center gap-1.5">
               {t("reasoning")}
               <span className="text-xs text-muted-foreground font-normal">
-                (click to {isExpanded ? t("clickToHide") : t("clickToView")})
+                {isExpanded ? t("clickToHide") : t("clickToView")}
               </span>
             </div>
           </div>
