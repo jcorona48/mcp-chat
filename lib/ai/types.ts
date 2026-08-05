@@ -5,7 +5,8 @@ export type KnownProviderKey =
   | "groq"
   | "xai"
   | "openrouter"
-  | "llm7";
+  | "llm7"
+  | "openzen";
 
 export type ApiKeyMap = Record<string, string | undefined>;
 
@@ -30,6 +31,7 @@ export const LEGACY_API_KEYS: Record<KnownProviderKey, string> = {
   xai: "XAI_API_KEY",
   openrouter: "OPENROUTE_API_KEY",
   llm7: "LLM7_API_KEY",
+  openzen: "OPENZEN_API_KEY",
 };
 
 export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
@@ -40,6 +42,7 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   xai: "xAI",
   openrouter: "OpenRouter",
   llm7: "LLM7",
+  openzen: "OpenZen",
 };
 
 export const KNOWN_PROVIDERS: KnownProviderKey[] = [
@@ -50,6 +53,7 @@ export const KNOWN_PROVIDERS: KnownProviderKey[] = [
   "xai",
   "openrouter",
   "llm7",
+  "openzen",
 ];
 
 export const KEYLESS_PROVIDERS: KnownProviderKey[] = ["llm7"];

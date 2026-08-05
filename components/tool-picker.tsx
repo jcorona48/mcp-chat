@@ -103,7 +103,7 @@ export function ToolPickerContent() {
   };
 
   const isCollapsed = (serverId: string) =>
-    isSearching ? false : collapsed[serverId] ?? hasManyServers;
+    isSearching ? false : collapsed[serverId] ?? true;
 
   const toggleGroup = (serverId: string) =>
     setCollapsed((prev) => ({ ...prev, [serverId]: !isCollapsed(serverId) }));

@@ -13,6 +13,7 @@ const KNOWN: Record<KnownProviderKey, { baseUrl: string }> = {
   xai: { baseUrl: "https://api.x.ai/v1" },
   openrouter: { baseUrl: "https://openrouter.ai/api/v1" },
   llm7: { baseUrl: "https://api.llm7.io/v1" },
+  openzen: { baseUrl: "https://opencode.ai/zen/v1" },
 };
 
 const LLM7_TOOL_MODELS = new Set(["gpt-oss:20b", "codestral-latest"]);

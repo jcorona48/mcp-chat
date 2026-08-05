@@ -32,6 +32,8 @@ export interface ModelInfo {
 const LLM7_BASE_URL = "https://api.llm7.io/v1";
 const ANON_API_KEY = "unused";
 
+const OPENZEN_BASE_URL = "https://opencode.ai/zen/v1";
+
 const llm7Client = createOpenAI({
   apiKey: ANON_API_KEY,
   baseURL: LLM7_BASE_URL,
@@ -144,6 +146,11 @@ function buildProviderModel(
       return createOpenAI({
         apiKey: apiKey || ANON_API_KEY,
         baseURL: baseURL || LLM7_BASE_URL,
+      })(providerModelId);
+    case "openzen":
+      return createOpenAI({
+        apiKey,
+        baseURL: baseURL || OPENZEN_BASE_URL,
       })(providerModelId);
     default:
       if (!baseURL) {
